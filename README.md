@@ -4,43 +4,40 @@
 
 This repository contains the **MCP (Model Context Protocol) server** for Unreal Engine, a powerful tool for controlling Unreal through AI clients like Claude, Cursor, and other MCP Hosts.
 
-However, we've now built something significantly more advanced: **The Flop Agent**, a fully autonomous AI agent specifically designed for Unreal Engine.
+We've also built **The Flop Agent**, a fully autonomous AI agent that runs inside Unreal and goes far beyond the MCP server with full Blueprint editing, world building, and chat directly in the editor.
 
-## v0.6 Now Released - [https://flopperam.com/](https://flopperam.com/)
+## v0.7 Now Released - [https://flopperam.com/](https://flopperam.com/)
+
+### FULL BLUEPRINT CREATION AND EDITING
+Full Blueprint creation and modification is now available inside the Unreal Editor. The agent goes beyond analysis and directly builds and edits Blueprint logic from natural language. You describe what you want. The agent handles structure, nodes, connections, and verification.
+
+**You can:**
+- Create new Blueprints from scratch
+- Add or modify variables, components, events, and functions
+- Update graph logic and node connections
+- Expand existing systems without manually wiring everything
+- Automatically compile and validate changes after edits
+
+The agent analyzes the Blueprint, plans the edits, executes them in the editor, then compiles to confirm everything works. Blueprint iteration speed increases dramatically when you remove manual node wiring from the loop. This is the first iteration of our Blueprint modification, more improvements are in progress.
+
+<img width="800" alt="Flop AI creating a health system in BP_MyPlayer2 from a natural language prompt" src="assets/blueprint_modification2.png" />
+
+<img width="800" alt="Flop AI building a full combat system in BP_Combat99 with health, armor, stamina, combo, and more" src="assets/blueprint_modification.png" />
 
 ### CHAT RIGHT INSIDE UNREAL
-The agent now runs in an embedded browser directly in the Unreal Editor. No more switching windows. Open the FlopAI panel and chat with the agent while you are looking at your scene.
-
-<img width="1706" height="1309" alt="Screenshot 2026-01-14 220636" src="https://github.com/user-attachments/assets/6e3e7439-3055-467a-9fe0-63c85dd7a0ad" />
+The agent runs in an embedded browser directly in the Unreal Editor. Open the FlopAI panel and chat while you work on your scene—no switching windows.
 
 ### UNREAL VERSION SUPPORT
-v0.6 now supports Unreal Engine 5.5 and 5.6, in addition to 5.7.
+v0.7 supports Unreal Engine 5.5, 5.6, and 5.7.
 
-### BLUEPRINT ANALYSIS TOOL
-We added a new Blueprint Analysis tool that lets the agent deeply inspect your Blueprints, including:
-- Variables, functions, event dispatchers, interfaces
-- Component hierarchies with key properties
-- Graph nodes and connections for execution and data flow
-- Selected nodes in the active editor
-- Full graph analysis
-
-Ask it to explain how a Blueprint works and it can actually read the graph structure and talk through what is happening.
-
-**Important note:** Blueprint Analysis is focused on reading and understanding right now. It cannot perform complex Blueprint modifications yet. That is coming in the next release in early February.
-
-### PREMIUM MODEL SUPPORT
-We added support for top-tier reasoning models like Claude Opus 4.5. These are much better at complex multi-step builds that used to be hit or miss. Think full environments from a single prompt.
-
-The agent will execute dozens of tools in sequence, creating materials, placing actors, and verifying its work as it goes.
+### BUILDING AND WORLD CREATION
+The agent executes complex multi-step builds: creating materials, placing actors, building structures, and verifying as it goes. With premium reasoning models (e.g. Claude Opus 4.5), you can drive full environments from a single prompt.
 
 ### 3D GENERATION QUALITY TIERS
-Text and image to 3D now has three quality levels:
-- **Good**: Fast iteration, lower detail
-- **High Quality**: Balanced quality
-- **Very High Quality**: Maximum detail, longer generation
+Text and image to 3D has three quality levels: **Good** (fast iteration), **High Quality** (balanced), and **Very High Quality** (maximum detail, longer generation).
 
 ### DOCUMENTATION
-Full docs are live at [flopperam.com/docs](https://flopperam.com/docs) covering installation, agent modes, 3D generation, Blueprint analysis, and examples.
+Full docs are at [flopperam.com/docs](https://flopperam.com/docs)—installation, agent modes, 3D generation, Blueprint editing, and examples. Make sure you're running the latest Flop AI plugin inside Unreal to use these features.
 
 ---
 
