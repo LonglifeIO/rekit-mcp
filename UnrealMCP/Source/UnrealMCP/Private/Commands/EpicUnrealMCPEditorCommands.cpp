@@ -21,6 +21,8 @@
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
 #include "EditorAssetLibrary.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Engine/StaticMesh.h"
 #include "Commands/EpicUnrealMCPBlueprintCommands.h"
 
 FEpicUnrealMCPEditorCommands::FEpicUnrealMCPEditorCommands()
@@ -55,7 +57,20 @@ TSharedPtr<FJsonObject> FEpicUnrealMCPEditorCommands::HandleCommand(const FStrin
     {
         return HandleSpawnBlueprintActor(Params);
     }
-    
+    // Kitbashing commands
+    else if (CommandType == TEXT("list_content_browser_meshes"))
+    {
+        return HandleListContentBrowserMeshes(Params);
+    }
+    else if (CommandType == TEXT("get_actor_details"))
+    {
+        return HandleGetActorDetails(Params);
+    }
+    else if (CommandType == TEXT("duplicate_actor"))
+    {
+        return HandleDuplicateActor(Params);
+    }
+
     return FEpicUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown editor command: %s"), *CommandType));
 }
 
@@ -212,6 +227,9 @@ TSharedPtr<FJsonObject> FEpicUnrealMCPEditorCommands::HandleSpawnActor(const TSh
         Transform.SetScale3D(Scale);
         NewActor->SetActorTransform(Transform);
 
+        // Set the actor label (display name in Outliner) to match the requested name
+        NewActor->SetActorLabel(ActorName);
+
         // Return the created actor's details
         return FEpicUnrealMCPCommonUtils::ActorToJsonObject(NewActor, true);
     }
@@ -305,4 +323,294 @@ TSharedPtr<FJsonObject> FEpicUnrealMCPEditorCommands::HandleSpawnBlueprintActor(
     // This function will now correctly call the implementation in BlueprintCommands
     FEpicUnrealMCPBlueprintCommands BlueprintCommands;
     return BlueprintCommands.HandleCommand(TEXT("spawn_blueprint_actor"), Params);
+}
+
+// ============================================================================
+// Kitbashing Commands
+// ============================================================================
+
+TSharedPtr<FJsonObject> FEpicUnrealMCPEditorCommands::HandleListContentBrowserMeshes(const TSharedPtr<FJsonObject>& Params)
+{
+    // Get search parameters
+    FString SearchPath;
+    if (!Params->TryGetStringField(TEXT("search_path"), SearchPath))
+    {
+        SearchPath = TEXT("/Game/");
+    }
+
+    FString NameFilter;
+    Params->TryGetStringField(TEXT("name_filter"), NameFilter);
+
+    int32 MaxResults = 100;
+    if (Params->HasField(TEXT("max_results")))
+    {
+        MaxResults = static_cast<int32>(Params->GetNumberField(TEXT("max_results")));
+    }
+
+    // Ensure path formatting
+    if (!SearchPath.StartsWith(TEXT("/")))
+    {
+        SearchPath = TEXT("/") + SearchPath;
+    }
+    if (!SearchPath.EndsWith(TEXT("/")))
+    {
+        SearchPath += TEXT("/");
+    }
+
+    // Query Asset Registry for StaticMesh assets
+    FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+    IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+
+    FARFilter Filter;
+    Filter.ClassPaths.Add(UStaticMesh::StaticClass()->GetClassPathName());
+    Filter.PackagePaths.Add(*SearchPath);
+    Filter.bRecursivePaths = true;
+
+    TArray<FAssetData> AssetDataArray;
+    AssetRegistry.GetAssets(Filter, AssetDataArray);
+
+    UE_LOG(LogTemp, Log, TEXT("ListContentBrowserMeshes: Found %d meshes in %s"), AssetDataArray.Num(), *SearchPath);
+
+    // Build JSON result, applying name filter and max_results
+    TArray<TSharedPtr<FJsonValue>> MeshArray;
+    for (const FAssetData& AssetData : AssetDataArray)
+    {
+        if (MeshArray.Num() >= MaxResults)
+        {
+            break;
+        }
+
+        FString AssetName = AssetData.AssetName.ToString();
+
+        // Apply name filter if provided
+        if (!NameFilter.IsEmpty() && !AssetName.Contains(NameFilter))
+        {
+            continue;
+        }
+
+        TSharedPtr<FJsonObject> MeshObj = MakeShared<FJsonObject>();
+        MeshObj->SetStringField(TEXT("name"), AssetName);
+        MeshObj->SetStringField(TEXT("path"), AssetData.GetObjectPathString());
+        MeshObj->SetStringField(TEXT("package"), AssetData.PackageName.ToString());
+
+        MeshArray.Add(MakeShared<FJsonValueObject>(MeshObj));
+    }
+
+    TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+    ResultObj->SetArrayField(TEXT("meshes"), MeshArray);
+    ResultObj->SetNumberField(TEXT("count"), MeshArray.Num());
+    ResultObj->SetNumberField(TEXT("total_found"), AssetDataArray.Num());
+    ResultObj->SetStringField(TEXT("search_path"), SearchPath);
+    if (!NameFilter.IsEmpty())
+    {
+        ResultObj->SetStringField(TEXT("name_filter"), NameFilter);
+    }
+
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FEpicUnrealMCPEditorCommands::HandleGetActorDetails(const TSharedPtr<FJsonObject>& Params)
+{
+    FString ActorName;
+    if (!Params->TryGetStringField(TEXT("name"), ActorName))
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'name' parameter"));
+    }
+
+    // Find the actor
+    UWorld* World = GEditor->GetEditorWorldContext().World();
+    if (!World)
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get editor world"));
+    }
+
+    AActor* TargetActor = nullptr;
+    TArray<AActor*> AllActors;
+    UGameplayStatics::GetAllActorsOfClass(World, AActor::StaticClass(), AllActors);
+
+    for (AActor* Actor : AllActors)
+    {
+        if (Actor && Actor->GetName() == ActorName)
+        {
+            TargetActor = Actor;
+            break;
+        }
+    }
+
+    if (!TargetActor)
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Actor not found: %s"), *ActorName));
+    }
+
+    // Start with basic actor info
+    TSharedPtr<FJsonObject> ResultObj = FEpicUnrealMCPCommonUtils::ActorToJsonObject(TargetActor, true);
+
+    // Add static mesh path if applicable
+    AStaticMeshActor* MeshActor = Cast<AStaticMeshActor>(TargetActor);
+    if (MeshActor && MeshActor->GetStaticMeshComponent())
+    {
+        UStaticMesh* Mesh = MeshActor->GetStaticMeshComponent()->GetStaticMesh();
+        if (Mesh)
+        {
+            ResultObj->SetStringField(TEXT("static_mesh_path"), Mesh->GetPathName());
+        }
+
+        // Add material info
+        UStaticMeshComponent* MeshComp = MeshActor->GetStaticMeshComponent();
+        TArray<TSharedPtr<FJsonValue>> MaterialsArray;
+        for (int32 i = 0; i < MeshComp->GetNumMaterials(); i++)
+        {
+            UMaterialInterface* Material = MeshComp->GetMaterial(i);
+            if (Material)
+            {
+                TSharedPtr<FJsonObject> MatObj = MakeShared<FJsonObject>();
+                MatObj->SetNumberField(TEXT("slot"), i);
+                MatObj->SetStringField(TEXT("name"), Material->GetName());
+                MatObj->SetStringField(TEXT("path"), Material->GetPathName());
+                MaterialsArray.Add(MakeShared<FJsonValueObject>(MatObj));
+            }
+        }
+        ResultObj->SetArrayField(TEXT("materials"), MaterialsArray);
+    }
+
+    // Add bounding box info
+    FVector Origin, BoxExtent;
+    TargetActor->GetActorBounds(false, Origin, BoxExtent);
+
+    auto VecToJsonArray = [](const FVector& V) -> TArray<TSharedPtr<FJsonValue>>
+    {
+        TArray<TSharedPtr<FJsonValue>> Arr;
+        Arr.Add(MakeShared<FJsonValueNumber>(V.X));
+        Arr.Add(MakeShared<FJsonValueNumber>(V.Y));
+        Arr.Add(MakeShared<FJsonValueNumber>(V.Z));
+        return Arr;
+    };
+
+    ResultObj->SetArrayField(TEXT("bounds_origin"), VecToJsonArray(Origin));
+    ResultObj->SetArrayField(TEXT("bounds_extent"), VecToJsonArray(BoxExtent));
+    ResultObj->SetArrayField(TEXT("bounds_min"), VecToJsonArray(Origin - BoxExtent));
+    ResultObj->SetArrayField(TEXT("bounds_max"), VecToJsonArray(Origin + BoxExtent));
+
+    return ResultObj;
+}
+
+TSharedPtr<FJsonObject> FEpicUnrealMCPEditorCommands::HandleDuplicateActor(const TSharedPtr<FJsonObject>& Params)
+{
+    FString SourceName;
+    if (!Params->TryGetStringField(TEXT("source_name"), SourceName))
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'source_name' parameter"));
+    }
+
+    FString NewName;
+    if (!Params->TryGetStringField(TEXT("new_name"), NewName))
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'new_name' parameter"));
+    }
+
+    UWorld* World = GEditor->GetEditorWorldContext().World();
+    if (!World)
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to get editor world"));
+    }
+
+    // Find source actor
+    AActor* SourceActor = nullptr;
+    TArray<AActor*> AllActors;
+    UGameplayStatics::GetAllActorsOfClass(World, AActor::StaticClass(), AllActors);
+
+    for (AActor* Actor : AllActors)
+    {
+        if (Actor && Actor->GetName() == SourceName)
+        {
+            SourceActor = Actor;
+            break;
+        }
+    }
+
+    if (!SourceActor)
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Source actor not found: %s"), *SourceName));
+    }
+
+    // Check for name collision
+    for (AActor* Actor : AllActors)
+    {
+        if (Actor && Actor->GetName() == NewName)
+        {
+            return FEpicUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Actor with name '%s' already exists"), *NewName));
+        }
+    }
+
+    // Determine target location: explicit location, or source + offset
+    FVector TargetLocation = SourceActor->GetActorLocation();
+    if (Params->HasField(TEXT("location")))
+    {
+        TargetLocation = FEpicUnrealMCPCommonUtils::GetVectorFromJson(Params, TEXT("location"));
+    }
+    else if (Params->HasField(TEXT("offset")))
+    {
+        FVector Offset = FEpicUnrealMCPCommonUtils::GetVectorFromJson(Params, TEXT("offset"));
+        TargetLocation += Offset;
+    }
+
+    // Determine rotation: explicit or copy from source
+    FRotator TargetRotation = SourceActor->GetActorRotation();
+    if (Params->HasField(TEXT("rotation")))
+    {
+        TargetRotation = FEpicUnrealMCPCommonUtils::GetRotatorFromJson(Params, TEXT("rotation"));
+    }
+
+    // Determine scale: explicit or copy from source
+    FVector TargetScale = SourceActor->GetActorScale3D();
+    if (Params->HasField(TEXT("scale")))
+    {
+        TargetScale = FEpicUnrealMCPCommonUtils::GetVectorFromJson(Params, TEXT("scale"));
+    }
+
+    // Spawn new actor as StaticMeshActor if source is one, copying mesh + materials
+    AStaticMeshActor* SourceMeshActor = Cast<AStaticMeshActor>(SourceActor);
+    if (SourceMeshActor && SourceMeshActor->GetStaticMeshComponent())
+    {
+        FActorSpawnParameters SpawnParams;
+        SpawnParams.Name = *NewName;
+
+        AStaticMeshActor* NewMeshActor = World->SpawnActor<AStaticMeshActor>(
+            AStaticMeshActor::StaticClass(), TargetLocation, TargetRotation, SpawnParams);
+
+        if (!NewMeshActor)
+        {
+            return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to spawn duplicate StaticMeshActor"));
+        }
+
+        // Copy mesh
+        UStaticMesh* SourceMesh = SourceMeshActor->GetStaticMeshComponent()->GetStaticMesh();
+        if (SourceMesh)
+        {
+            NewMeshActor->GetStaticMeshComponent()->SetStaticMesh(SourceMesh);
+        }
+
+        // Copy materials
+        UStaticMeshComponent* SourceComp = SourceMeshActor->GetStaticMeshComponent();
+        UStaticMeshComponent* NewComp = NewMeshActor->GetStaticMeshComponent();
+        for (int32 i = 0; i < SourceComp->GetNumMaterials(); i++)
+        {
+            UMaterialInterface* Mat = SourceComp->GetMaterial(i);
+            if (Mat)
+            {
+                NewComp->SetMaterial(i, Mat);
+            }
+        }
+
+        // Set scale
+        FTransform NewTransform = NewMeshActor->GetTransform();
+        NewTransform.SetScale3D(TargetScale);
+        NewMeshActor->SetActorTransform(NewTransform);
+
+        return FEpicUnrealMCPCommonUtils::ActorToJsonObject(NewMeshActor, true);
+    }
+
+    // Fallback for non-StaticMeshActors: generic approach
+    return FEpicUnrealMCPCommonUtils::CreateErrorResponse(
+        FString::Printf(TEXT("Source actor '%s' is not a StaticMeshActor. duplicate_actor only supports StaticMeshActors."), *SourceName));
 }

@@ -25,4 +25,9 @@ private:
 
     // Blueprint actor spawning
     TSharedPtr<FJsonObject> HandleSpawnBlueprintActor(const TSharedPtr<FJsonObject>& Params);
-}; 
+
+    // Kitbashing commands
+    TSharedPtr<FJsonObject> HandleListContentBrowserMeshes(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleGetActorDetails(const TSharedPtr<FJsonObject>& Params);
+    TSharedPtr<FJsonObject> HandleDuplicateActor(const TSharedPtr<FJsonObject>& Params);
+};

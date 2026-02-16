@@ -42,6 +42,7 @@ from helpers.actor_name_manager import (
 from helpers.bridge_aqueduct_creation import (
     build_suspension_bridge_structure, build_aqueduct_structure
 )
+from helpers.outpost_creation import build_outpost_compound
 
 # ============================================================================
 # Blueprint Node Graph Tools
@@ -94,12 +95,14 @@ class UnrealConnection:
     # Commands that need longer timeouts
     LARGE_OPERATION_COMMANDS = {
         "get_available_materials",
+        "list_content_browser_meshes",
         "create_town",
-        "create_castle_fortress", 
+        "create_castle_fortress",
         "construct_mansion",
         "create_suspension_bridge",
         "create_aqueduct",
-        "create_maze"
+        "create_maze",
+        "create_outpost_compound"
     }
     
     def __init__(self):
@@ -517,6 +520,246 @@ def set_actor_transform(
         return response or {"success": False, "message": "No response from Unreal"}
     except Exception as e:
         logger.error(f"set_actor_transform error: {e}")
+        return {"success": False, "message": str(e)}
+
+# ============================================================================
+# Kitbashing Tools — Place, browse, duplicate, and snap static meshes
+# ============================================================================
+
+@mcp.tool()
+def spawn_static_mesh_actor(
+    name: str,
+    mesh_path: str,
+    location: List[float] = [0, 0, 0],
+    rotation: List[float] = [0, 0, 0],
+    scale: List[float] = [1, 1, 1]
+) -> Dict[str, Any]:
+    """Place a static mesh from the Content Browser into the level.
+
+    This is the core kitbashing operation: take any mesh asset and spawn it as a
+    StaticMeshActor at the given transform. Use list_content_browser_meshes to
+    discover available mesh_path values.
+
+    Args:
+        name: Actor label in the level (e.g. "Wall_01")
+        mesh_path: Content Browser path (e.g. "/Game/ModularSciFi/Meshes/SM_Wall_4x4")
+        location: World position [X, Y, Z] in centimeters
+        rotation: Rotation [Pitch, Yaw, Roll] in degrees
+        scale: Scale [X, Y, Z] multiplier
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        params = {
+            "name": name,
+            "type": "StaticMeshActor",
+            "static_mesh": mesh_path,
+            "location": location,
+            "rotation": rotation,
+            "scale": scale
+        }
+        response = unreal.send_command("spawn_actor", params)
+        return response or {"success": False, "message": "No response from Unreal"}
+    except Exception as e:
+        logger.error(f"spawn_static_mesh_actor error: {e}")
+        return {"success": False, "message": str(e)}
+
+@mcp.tool()
+def list_content_browser_meshes(
+    search_path: str = "/Game/",
+    name_filter: str = "",
+    max_results: int = 100
+) -> Dict[str, Any]:
+    """Browse static meshes available in the Content Browser.
+
+    Use this to discover mesh asset paths before placing them with
+    spawn_static_mesh_actor.
+
+    Args:
+        search_path: Content Browser folder to search (e.g. "/Game/ModularSciFi/")
+        name_filter: Only return meshes whose name contains this substring
+        max_results: Maximum number of results to return (default 100)
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        params = {"search_path": search_path, "max_results": max_results}
+        if name_filter:
+            params["name_filter"] = name_filter
+        response = unreal.send_command("list_content_browser_meshes", params)
+        return response or {"success": False, "message": "No response from Unreal"}
+    except Exception as e:
+        logger.error(f"list_content_browser_meshes error: {e}")
+        return {"success": False, "message": str(e)}
+
+@mcp.tool()
+def get_actor_details(name: str) -> Dict[str, Any]:
+    """Get detailed info about an actor: mesh path, materials, and bounding box.
+
+    Returns the actor's transform plus static_mesh_path, materials list, and
+    bounds (origin, extent, min, max) — essential for snapping and alignment.
+
+    Args:
+        name: The actor name in the level
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        response = unreal.send_command("get_actor_details", {"name": name})
+        return response or {"success": False, "message": "No response from Unreal"}
+    except Exception as e:
+        logger.error(f"get_actor_details error: {e}")
+        return {"success": False, "message": str(e)}
+
+@mcp.tool()
+def duplicate_actor(
+    source_name: str,
+    new_name: str,
+    location: List[float] = None,
+    offset: List[float] = None,
+    rotation: List[float] = None,
+    scale: List[float] = None
+) -> Dict[str, Any]:
+    """Duplicate a StaticMeshActor, copying its mesh and materials.
+
+    Provide either an absolute location OR an offset from the source position.
+    If neither is given, the duplicate is placed at the same location as the source.
+
+    Args:
+        source_name: Name of the actor to copy
+        new_name: Name for the new duplicate actor
+        location: Absolute world position [X, Y, Z] (overrides offset)
+        offset: Offset from source position [X, Y, Z]
+        rotation: Rotation [Pitch, Yaw, Roll] in degrees (copies source if omitted)
+        scale: Scale [X, Y, Z] (copies source if omitted)
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        params = {"source_name": source_name, "new_name": new_name}
+        if location is not None:
+            params["location"] = location
+        elif offset is not None:
+            params["offset"] = offset
+        if rotation is not None:
+            params["rotation"] = rotation
+        if scale is not None:
+            params["scale"] = scale
+        response = unreal.send_command("duplicate_actor", params)
+        return response or {"success": False, "message": "No response from Unreal"}
+    except Exception as e:
+        logger.error(f"duplicate_actor error: {e}")
+        return {"success": False, "message": str(e)}
+
+@mcp.tool()
+def snap_actors(
+    moving_actor: str,
+    target_actor: str,
+    snap_face: str = "right",
+    offset: float = 0.0
+) -> Dict[str, Any]:
+    """Align one actor's face flush against another actor's face.
+
+    Gets bounding boxes for both actors, computes the translation needed to
+    make them flush on the specified face, then moves the moving_actor.
+
+    Snap faces are relative to the TARGET actor:
+    - "right":  moving_actor's left face touches target's right face (+Y)
+    - "left":   moving_actor's right face touches target's left face (-Y)
+    - "front":  moving_actor's back face touches target's front face (+X)
+    - "back":   moving_actor's front face touches target's back face (-X)
+    - "top":    moving_actor's bottom face touches target's top face (+Z)
+    - "bottom": moving_actor's top face touches target's bottom face (-Z)
+
+    Args:
+        moving_actor: Name of the actor to move
+        target_actor: Name of the actor to snap against
+        snap_face: Which face of the target to snap to (right/left/front/back/top/bottom)
+        offset: Additional gap between faces in centimeters (negative = overlap)
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        # Get details for both actors
+        moving_details = unreal.send_command("get_actor_details", {"name": moving_actor})
+        if not moving_details or "error" in moving_details:
+            return {"success": False, "message": f"Failed to get details for moving actor '{moving_actor}': {moving_details}"}
+
+        target_details = unreal.send_command("get_actor_details", {"name": target_actor})
+        if not target_details or "error" in target_details:
+            return {"success": False, "message": f"Failed to get details for target actor '{target_actor}': {target_details}"}
+
+        # Extract bounds
+        t_origin = target_details.get("bounds_origin", [0, 0, 0])
+        t_extent = target_details.get("bounds_extent", [0, 0, 0])
+        m_origin = moving_details.get("bounds_origin", [0, 0, 0])
+        m_extent = moving_details.get("bounds_extent", [0, 0, 0])
+
+        # Current moving actor location
+        m_loc = list(moving_details.get("location", [0, 0, 0]))
+
+        # Compute the offset from the moving actor's center to its bounds center
+        # (bounds_origin may differ from actor location for off-center meshes)
+        m_bounds_offset = [m_origin[i] - m_loc[i] for i in range(3)]
+
+        # New location starts from current
+        new_loc = list(m_loc)
+
+        # Axis mapping: X=0(front/back), Y=1(right/left), Z=2(top/bottom)
+        face_map = {
+            "right":  (1,  1),
+            "left":   (1, -1),
+            "front":  (0,  1),
+            "back":   (0, -1),
+            "top":    (2,  1),
+            "bottom": (2, -1),
+        }
+
+        if snap_face not in face_map:
+            return {"success": False, "message": f"Invalid snap_face '{snap_face}'. Use: right, left, front, back, top, bottom"}
+
+        axis, direction = face_map[snap_face]
+
+        # Target edge position on the snap axis
+        target_edge = t_origin[axis] + direction * t_extent[axis]
+
+        # Moving actor's opposing edge relative to its location
+        # If snapping to target's right (+Y), moving actor's left edge (-Y extent) should touch
+        moving_edge_offset = m_bounds_offset[axis] - direction * m_extent[axis]
+
+        # New position: place moving actor so its opposing edge aligns with target edge + offset
+        new_loc[axis] = target_edge + direction * offset - moving_edge_offset
+
+        # Apply the transform
+        response = unreal.send_command("set_actor_transform", {
+            "name": moving_actor,
+            "location": new_loc
+        })
+
+        if not response or response.get("error"):
+            return {"success": False, "message": f"Failed to set actor transform: {response}"}
+
+        response["snap_info"] = {
+            "snap_face": snap_face,
+            "axis": ["X", "Y", "Z"][axis],
+            "target_edge": target_edge,
+            "new_location": new_loc,
+            "offset_applied": offset
+        }
+        return response
+
+    except Exception as e:
+        logger.error(f"snap_actors error: {e}")
         return {"success": False, "message": str(e)}
 
 # Essential Blueprint Tools for Physics Actors
@@ -1748,6 +1991,66 @@ def create_castle_fortress(
         
     except Exception as e:
         logger.error(f"create_castle_fortress error: {e}")
+        return {"success": False, "message": str(e)}
+
+@mcp.tool()
+def create_outpost_compound(
+    location: List[float] = [0.0, 0.0, 0.0],
+    name_prefix: str = "Outpost",
+    compound_size: str = "medium",
+    include_comms_tower: bool = True,
+    include_antenna_array: bool = True,
+    include_parking_pad: bool = True,
+    include_containers: bool = True,
+    include_perimeter: bool = True
+) -> Dict[str, Any]:
+    """
+    Create a sci-fi mining outpost compound from primitive shapes.
+    Builds an industrial/military arctic outpost with command building,
+    secondary structures, comms tower, antenna array, parking pad,
+    storage containers, perimeter markers, and utility pipes.
+
+    Args:
+        location: [x, y, z] world position for compound center
+        name_prefix: prefix for all spawned actor names
+        compound_size: "small", "medium", or "large"
+        include_comms_tower: build tall communications tower with dish
+        include_antenna_array: build cluster of radio antenna poles
+        include_parking_pad: build vehicle parking slab with markers
+        include_containers: build scattered shipping containers
+        include_perimeter: build warning-colored fence posts
+    """
+    try:
+        unreal = get_unreal_connection()
+        if not unreal:
+            return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+        logger.info(f"Creating {compound_size} outpost compound '{name_prefix}'")
+
+        result = build_outpost_compound(
+            unreal,
+            location=location,
+            name_prefix=name_prefix,
+            compound_size=compound_size,
+            include_comms_tower=include_comms_tower,
+            include_antenna_array=include_antenna_array,
+            include_parking_pad=include_parking_pad,
+            include_containers=include_containers,
+            include_perimeter=include_perimeter,
+        )
+
+        total = result["stats"]["total_actors"]
+        logger.info(f"Outpost compound complete! Created {total} actors")
+
+        return {
+            "success": True,
+            "message": f"{compound_size.title()} outpost '{name_prefix}' created with {total} elements",
+            "actors": result["actors"],
+            "stats": result["stats"],
+        }
+
+    except Exception as e:
+        logger.error(f"create_outpost_compound error: {e}")
         return {"success": False, "message": str(e)}
 
 @mcp.tool()
