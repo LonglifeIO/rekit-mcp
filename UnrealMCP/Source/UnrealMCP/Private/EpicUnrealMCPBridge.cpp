@@ -54,6 +54,7 @@
 #include "Commands/EpicUnrealMCPEditorCommands.h"
 #include "Commands/EpicUnrealMCPBlueprintCommands.h"
 #include "Commands/EpicUnrealMCPBlueprintGraphCommands.h"
+#include "Commands/EpicUnrealMCPPCGGraphCommands.h"
 #include "Commands/EpicUnrealMCPCommonUtils.h"
 
 // Default settings
@@ -65,6 +66,7 @@ UEpicUnrealMCPBridge::UEpicUnrealMCPBridge()
     EditorCommands = MakeShared<FEpicUnrealMCPEditorCommands>();
     BlueprintCommands = MakeShared<FEpicUnrealMCPBlueprintCommands>();
     BlueprintGraphCommands = MakeShared<FEpicUnrealMCPBlueprintGraphCommands>();
+    PCGGraphCommands = MakeShared<FEpicUnrealMCPPCGGraphCommands>();
 }
 
 UEpicUnrealMCPBridge::~UEpicUnrealMCPBridge()
@@ -72,6 +74,7 @@ UEpicUnrealMCPBridge::~UEpicUnrealMCPBridge()
     EditorCommands.Reset();
     BlueprintCommands.Reset();
     BlueprintGraphCommands.Reset();
+    PCGGraphCommands.Reset();
 }
 
 // Initialize subsystem
@@ -226,7 +229,8 @@ FString UEpicUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const T
                      CommandType == TEXT("spawn_blueprint_actor") ||
                      CommandType == TEXT("list_content_browser_meshes") ||
                      CommandType == TEXT("get_actor_details") ||
-                     CommandType == TEXT("duplicate_actor"))
+                     CommandType == TEXT("duplicate_actor") ||
+                     CommandType == TEXT("take_screenshot"))
             {
                 ResultJson = EditorCommands->HandleCommand(CommandType, Params);
             }
@@ -264,6 +268,22 @@ FString UEpicUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const T
                      CommandType == TEXT("rename_function"))
             {
                 ResultJson = BlueprintGraphCommands->HandleCommand(CommandType, Params);
+            }
+            // PCG Graph Commands
+            else if (CommandType == TEXT("create_pcg_graph") ||
+                     CommandType == TEXT("read_pcg_graph") ||
+                     CommandType == TEXT("add_pcg_node") ||
+                     CommandType == TEXT("connect_pcg_nodes") ||
+                     CommandType == TEXT("set_pcg_node_property") ||
+                     CommandType == TEXT("delete_pcg_node") ||
+                     CommandType == TEXT("add_pcg_graph_parameter") ||
+                     CommandType == TEXT("set_pcg_graph_parameter") ||
+                     CommandType == TEXT("assign_pcg_graph") ||
+                     CommandType == TEXT("set_pcg_spawner_entries") ||
+                     CommandType == TEXT("generate_pcg") ||
+                     CommandType == TEXT("get_pcg_node_property"))
+            {
+                ResultJson = PCGGraphCommands->HandleCommand(CommandType, Params);
             }
             else
             {

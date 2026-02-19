@@ -14,7 +14,8 @@ import time
 import threading
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Dict, Any, Optional, List
-from mcp.server.fastmcp import FastMCP
+import os
+from mcp.server.fastmcp import FastMCP, Image
 
 from helpers.infrastructure_creation import (
     _create_street_grid, _create_street_lights, _create_town_vehicles, _create_town_decorations,
@@ -56,6 +57,16 @@ from helpers.blueprint_graph import node_properties
 from helpers.blueprint_graph import function_manager
 from helpers.blueprint_graph import function_io
 
+# ============================================================================
+# PCG Graph Tools
+# ============================================================================
+from helpers.pcg_graph import graph_creator as pcg_graph_creator
+from helpers.pcg_graph import node_manager as pcg_node_manager
+from helpers.pcg_graph import node_connector as pcg_node_connector
+from helpers.pcg_graph import node_properties as pcg_node_properties
+from helpers.pcg_graph import parameter_manager as pcg_parameter_manager
+from helpers.pcg_graph import spawner_entries as pcg_spawner_entries
+
 
 # Configure logging with more detailed format
 logging.basicConfig(
@@ -90,6 +101,7 @@ class UnrealConnection:
     CONNECT_TIMEOUT = 10    # seconds
     DEFAULT_RECV_TIMEOUT = 30  # seconds
     LARGE_OP_RECV_TIMEOUT = 300  # seconds for large operations
+    FRESH_CONNECTION_PER_COMMAND = True  # Reconnect before each command to avoid stale sockets
     BUFFER_SIZE = 8192
     
     # Commands that need longer timeouts
@@ -121,10 +133,10 @@ class UnrealConnection:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 131072)  # 128KB
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 131072)  # 128KB
         
-        # Set linger to ensure clean socket closure (l_onoff=1, l_linger=0)
-        # struct linger is two 16-bit integers: l_onoff and l_linger
+        # Disable aggressive linger — let the OS handle graceful close for
+        # persistent connections instead of sending RST immediately
         try:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('hh', 1, 0))
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('hh', 0, 0))
         except OSError:
             pass
         
@@ -133,30 +145,37 @@ class UnrealConnection:
     def connect(self) -> bool:
         """
         Connect to Unreal Engine with retry logic.
-        
-        Uses exponential backoff for retries. Sleep occurs outside the lock
-        to avoid blocking other threads during retry delays.
-            
+
+        Reuses existing connection if still alive. Uses exponential backoff
+        for retries. Sleep occurs outside the lock to avoid blocking other
+        threads during retry delays.
+
         Returns:
             True if connected successfully, False otherwise
         """
+        # Fast path: reuse existing connection if it's still alive
+        if self.connected and self.socket and self._is_socket_alive():
+            logger.debug("Reusing existing connection to Unreal Engine")
+            return True
+
+        # Connection is dead or doesn't exist — clean up and reconnect
         for attempt in range(self.MAX_RETRIES + 1):
             # Hold lock only during connection attempt, not during sleep
             with self._lock:
                 # Clean up any existing connection
                 self._close_socket_unsafe()
-                
+
                 try:
                     logger.info(f"Connecting to Unreal at {UNREAL_HOST}:{UNREAL_PORT} (attempt {attempt + 1}/{self.MAX_RETRIES + 1})...")
-                    
+
                     self.socket = self._create_socket()
                     self.socket.connect((UNREAL_HOST, UNREAL_PORT))
                     self.connected = True
                     self._last_error = None
-                    
+
                     logger.info("Successfully connected to Unreal Engine")
                     return True
-                    
+
                 except socket.timeout as e:
                     self._last_error = f"Connection timeout: {e}"
                     logger.warning(f"Connection timeout (attempt {attempt + 1})")
@@ -169,18 +188,47 @@ class UnrealConnection:
                 except Exception as e:
                     self._last_error = f"Unexpected error: {e}"
                     logger.error(f"Unexpected connection error: {e} (attempt {attempt + 1})")
-                
+
                 self._close_socket_unsafe()
                 self.connected = False
-            
+
             # Sleep OUTSIDE the lock to allow other threads to proceed
             if attempt < self.MAX_RETRIES:
                 delay = min(self.BASE_RETRY_DELAY * (2 ** attempt), self.MAX_RETRY_DELAY)
                 logger.info(f"Retrying connection in {delay:.1f}s...")
                 time.sleep(delay)
-        
+
         logger.error(f"Failed to connect after {self.MAX_RETRIES + 1} attempts. Last error: {self._last_error}")
         return False
+
+    def _is_socket_alive(self) -> bool:
+        """Check if the socket is still connected to the remote end."""
+        if not self.socket:
+            return False
+        try:
+            # MSG_PEEK peeks at data without consuming it; zero-length recv
+            # checks if the remote end has closed the connection.
+            self.socket.setblocking(False)
+            try:
+                data = self.socket.recv(1, socket.MSG_PEEK)
+                # If recv returns empty bytes, the remote end closed
+                if data == b'':
+                    return False
+                # Got data — socket is alive (unexpected data sitting in buffer)
+                return True
+            except BlockingIOError:
+                # No data available — socket is alive and idle (expected state)
+                return True
+            except (ConnectionResetError, ConnectionAbortedError, OSError):
+                return False
+        except Exception:
+            return False
+        finally:
+            try:
+                if self.socket:
+                    self.socket.setblocking(True)
+            except Exception:
+                pass
     
     def _close_socket_unsafe(self):
         """Close socket without lock (internal use only)."""
@@ -334,15 +382,18 @@ class UnrealConnection:
     def _send_command_once(self, command: str, params: Dict[str, Any], attempt: int) -> Dict[str, Any]:
         """
         Send command once (internal method).
-        
+
+        Uses a persistent connection — the socket stays open between commands.
+        Only reconnects if the existing connection is dead.
+
         Args:
             command: Command type
             params: Command parameters
             attempt: Current attempt number
-            
+
         Returns:
             Response dictionary
-            
+
         Raises:
             Various exceptions on failure
         """
@@ -350,52 +401,62 @@ class UnrealConnection:
         # where another thread could close/reconnect the socket mid-operation.
         # RLock allows nested acquisition from connect()/disconnect() calls.
         with self._lock:
-            # Connect (or reconnect)
-            if not self.connect():
-                raise ConnectionError(f"Failed to connect to Unreal Engine: {self._last_error}")
-            
+            # Force fresh connection per command to avoid stale socket timeouts.
+            # UE5's Python bridge silently drops idle connections, but
+            # _is_socket_alive() can't detect this (recv peek returns
+            # BlockingIOError which looks "alive"). The result is a 30-300s
+            # timeout on first attempt of every command. Reconnecting is <10ms.
+            if self.FRESH_CONNECTION_PER_COMMAND:
+                if self.connected:
+                    self._close_socket_unsafe()
+                if not self.connect():
+                    raise ConnectionError(f"Failed to connect to Unreal Engine: {self._last_error}")
+            else:
+                # Legacy: reuse connection if alive (prone to stale socket hangs)
+                if not self.connected or not self.socket or not self._is_socket_alive():
+                    if not self.connect():
+                        raise ConnectionError(f"Failed to connect to Unreal Engine: {self._last_error}")
+
+            # Build and send command
+            command_obj = {
+                "type": command,
+                "params": params or {}
+            }
+            command_json = json.dumps(command_obj)
+
+            logger.info(f"Sending command (attempt {attempt + 1}): {command}")
+            logger.debug(f"Command payload: {command_json[:500]}...")
+
+            # Send with timeout
+            self.socket.settimeout(10)  # 10 second send timeout
+            self.socket.sendall(command_json.encode('utf-8'))
+
+            # Receive response
+            response_data = self._receive_response(command)
+
+            # Parse response
             try:
-                # Build and send command
-                command_obj = {
-                    "type": command,
-                    "params": params or {}
-                }
-                command_json = json.dumps(command_obj)
-                
-                logger.info(f"Sending command (attempt {attempt + 1}): {command}")
-                logger.debug(f"Command payload: {command_json[:500]}...")
-                
-                # Send with timeout
-                self.socket.settimeout(10)  # 10 second send timeout
-                self.socket.sendall(command_json.encode('utf-8'))
-                
-                # Receive response
-                response_data = self._receive_response(command)
-                
-                # Parse response
-                try:
-                    response = json.loads(response_data.decode('utf-8'))
-                except json.JSONDecodeError as e:
-                    logger.error(f"JSON decode error: {e}")
-                    logger.debug(f"Raw response: {response_data[:500]}")
-                    raise ValueError(f"Invalid JSON response: {e}")
-                
-                logger.info(f"Command {command} completed successfully")
-                
-                # Normalize error responses
-                if response.get("status") == "error":
-                    error_msg = response.get("error") or response.get("message", "Unknown error")
-                    logger.warning(f"Unreal returned error: {error_msg}")
-                elif response.get("success") is False:
-                    error_msg = response.get("error") or response.get("message", "Unknown error")
-                    response = {"status": "error", "error": error_msg}
-                    logger.warning(f"Unreal returned failure: {error_msg}")
-                
-                return response
-                
-            finally:
-                # Always clean up connection after command
-                self._close_socket_unsafe()
+                response = json.loads(response_data.decode('utf-8'))
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON decode error: {e}")
+                logger.debug(f"Raw response: {response_data[:500]}")
+                raise ValueError(f"Invalid JSON response: {e}")
+
+            logger.info(f"Command {command} completed successfully")
+
+            # Normalize error responses
+            if response.get("status") == "error":
+                error_msg = response.get("error") or response.get("message", "Unknown error")
+                logger.warning(f"Unreal returned error: {error_msg}")
+            elif response.get("success") is False:
+                error_msg = response.get("error") or response.get("message", "Unknown error")
+                response = {"status": "error", "error": error_msg}
+                logger.warning(f"Unreal returned failure: {error_msg}")
+
+            # Small delay to let UE's game thread finish cleanup before next command
+            time.sleep(0.05)
+
+            return response
 
 # Global connection instance (singleton pattern)
 _unreal_connection: Optional[UnrealConnection] = None
@@ -761,6 +822,45 @@ def snap_actors(
     except Exception as e:
         logger.error(f"snap_actors error: {e}")
         return {"success": False, "message": str(e)}
+
+@mcp.tool()
+def take_screenshot(filename: str = "") -> list:
+    """Capture a screenshot of the active UE5 editor viewport.
+
+    Saves the current editor viewport as a PNG image and returns it
+    as viewable image content. Useful for verifying actor placement,
+    reviewing kitbash results, and visual debugging.
+
+    Args:
+        filename: Optional file path for the screenshot. Defaults to
+                  ProjectSaved/Screenshots/MCP_Screenshot.png
+    """
+    unreal = get_unreal_connection()
+    try:
+        params = {}
+        if filename:
+            params["filename"] = filename
+        response = unreal.send_command("take_screenshot", params)
+
+        if response and response.get("status") == "success":
+            result = response.get("result", {})
+            file_path = result.get("file_path", "")
+            width = result.get("width", 0)
+            height = result.get("height", 0)
+
+            if file_path and os.path.exists(file_path):
+                return [
+                    f"Screenshot saved: {file_path} ({width}x{height})",
+                    Image(path=file_path),
+                ]
+
+            return [f"Screenshot saved: {file_path} ({width}x{height}) — file not found on disk for preview"]
+
+        error = response.get("error", "Unknown error") if response else "No response"
+        return [f"Screenshot failed: {error}"]
+    except Exception as e:
+        logger.error(f"take_screenshot error: {e}")
+        return [f"Screenshot error: {e}"]
 
 # Essential Blueprint Tools for Physics Actors
 @mcp.tool()
@@ -1499,6 +1599,33 @@ def spawn_physics_blueprint_actor (
         return result
     except Exception as e:
         logger.error(f"spawn_physics_blueprint_actor  error: {e}")
+        return {"success": False, "message": str(e)}
+
+@mcp.tool()
+def spawn_existing_blueprint_actor(
+    blueprint_name: str,
+    actor_name: str = "SpawnedActor",
+    location: List[float] = [0.0, 0.0, 0.0],
+    rotation: List[float] = [0.0, 0.0, 0.0]
+) -> dict:
+    """
+    Spawn an instance of an existing Blueprint into the level.
+
+    Args:
+        blueprint_name: Name of the Blueprint asset (e.g. "BP_PCG_Hab")
+        actor_name: Label for the spawned actor
+        location: World position [X, Y, Z]
+        rotation: Rotation [Roll, Pitch, Yaw]
+
+    Returns:
+        Dictionary with spawned actor name and location
+    """
+    try:
+        unreal = get_unreal_connection()
+        result = spawn_blueprint_actor(unreal, blueprint_name, actor_name, location, rotation)
+        return result
+    except Exception as e:
+        logger.error(f"spawn_existing_blueprint_actor error: {e}")
         return {"success": False, "message": str(e)}
 
 @mcp.tool()
@@ -3088,12 +3215,383 @@ def rename_function(
         return {"success": False, "message": str(e)}
 
 
-# Run the server
+# ============================================================================
+# PCG Graph Tools
+# ============================================================================
 
 
+@mcp.tool()
+def create_pcg_graph(
+    graph_name: str,
+    path: str = "/Game/PCG"
+) -> Dict[str, Any]:
+    """
+    Create a new PCG graph asset.
+
+    Args:
+        graph_name: Name for the new PCG graph (e.g., "PCG_Hab_Main")
+        path: Content path where the graph will be created (default: "/Game/PCG")
+
+    Returns:
+        Dictionary with graph_path and graph_name or error
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = pcg_graph_creator.create_pcg_graph(unreal, graph_name, path)
+        return result
+    except Exception as e:
+        logger.error(f"create_pcg_graph error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def read_pcg_graph(
+    graph_path: str
+) -> Dict[str, Any]:
+    """
+    Read and inspect an existing PCG graph structure (nodes, connections, parameters).
+
+    Args:
+        graph_path: Full content path to the PCG graph (e.g., "/Game/PCG/PCG_Hab_Main")
+
+    Returns:
+        Dictionary with nodes, connections, parameters arrays, and node_count
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = pcg_graph_creator.read_pcg_graph(unreal, graph_path)
+        return result
+    except Exception as e:
+        logger.error(f"read_pcg_graph error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def add_pcg_node(
+    graph_path: str,
+    node_type: str,
+    pos_x: int = 0,
+    pos_y: int = 0
+) -> Dict[str, Any]:
+    """
+    Add a node to a PCG graph.
+
+    Args:
+        graph_path: Content path to the PCG graph
+        node_type: Type of node. Common types: "SurfaceSampler", "StaticMeshSpawner",
+                   "TransformPoints", "CreatePointsGrid", "DensityFilter", "CopyPoints",
+                   "Merge", "Difference", "Subgraph", "GetActorData", "AttributeFilter",
+                   "CreateAttribute", "DensityNoise", "DensityRemap", "Projection",
+                   "Intersection", "SplineSampler", "VolumeSampler"
+        pos_x: X position in graph editor (default: 0)
+        pos_y: Y position in graph editor (default: 0)
+
+    Returns:
+        Dictionary with node_id, settings_class, input_pins, output_pins or error
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = pcg_node_manager.add_pcg_node(unreal, graph_path, node_type, pos_x, pos_y)
+        return result
+    except Exception as e:
+        logger.error(f"add_pcg_node error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def connect_pcg_nodes(
+    graph_path: str,
+    from_node_id: str,
+    to_node_id: str,
+    from_pin: str = "Out",
+    to_pin: str = "In"
+) -> Dict[str, Any]:
+    """
+    Connect two nodes in a PCG graph via their pins.
+
+    Args:
+        graph_path: Content path to the PCG graph
+        from_node_id: FName of the source node
+        to_node_id: FName of the target node
+        from_pin: Label of the output pin on source node (default: "Out")
+        to_pin: Label of the input pin on target node (default: "In")
+
+    Returns:
+        Dictionary with from_node_id, from_pin, to_node_id, to_pin or error
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = pcg_node_connector.connect_pcg_nodes(
+            unreal, graph_path, from_node_id, to_node_id, from_pin, to_pin
+        )
+        return result
+    except Exception as e:
+        logger.error(f"connect_pcg_nodes error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def set_pcg_node_property(
+    graph_path: str,
+    node_id: str,
+    property_name: str,
+    property_value: Any
+) -> Dict[str, Any]:
+    """
+    Set a property on a PCG node's settings object.
+
+    Args:
+        graph_path: Content path to the PCG graph
+        node_id: FName of the node
+        property_name: Name of the property (e.g., "CellSize", "GridExtents", "bInvertFilter")
+        property_value: Value to set. Types: bool, int, float, str, [x,y,z] for vectors,
+                       [pitch,yaw,roll] for rotators, enum name strings
+
+    Returns:
+        Dictionary with node_id, property_name, property_type or error
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = pcg_node_properties.set_pcg_node_property(
+            unreal, graph_path, node_id, property_name, property_value
+        )
+        return result
+    except Exception as e:
+        logger.error(f"set_pcg_node_property error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def delete_pcg_node(
+    graph_path: str,
+    node_id: str
+) -> Dict[str, Any]:
+    """
+    Delete a node from a PCG graph.
+
+    Args:
+        graph_path: Content path to the PCG graph
+        node_id: FName of the node to delete
+
+    Returns:
+        Dictionary with deleted_node_id or error
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = pcg_node_manager.delete_pcg_node(unreal, graph_path, node_id)
+        return result
+    except Exception as e:
+        logger.error(f"delete_pcg_node error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def add_pcg_graph_parameter(
+    graph_path: str,
+    param_name: str,
+    param_type: str
+) -> Dict[str, Any]:
+    """
+    Add a user parameter to a PCG graph (for parameterized graphs like PCG_Hab_Main).
+
+    Args:
+        graph_path: Content path to the PCG graph
+        param_name: Name for the parameter (e.g., "HabLength", "WindowDensity")
+        param_type: Type of parameter: "Bool", "Int32", "Int64", "Float", "Double",
+                   "String", "Name", "Vector", "Rotator", "Transform", "SoftObjectPath"
+
+    Returns:
+        Dictionary with param_name, param_type or error
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = pcg_parameter_manager.add_pcg_graph_parameter(
+            unreal, graph_path, param_name, param_type
+        )
+        return result
+    except Exception as e:
+        logger.error(f"add_pcg_graph_parameter error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def set_pcg_graph_parameter(
+    graph_path: str,
+    param_name: str,
+    default_value: Any
+) -> Dict[str, Any]:
+    """
+    Set the default value of a user parameter on a PCG graph.
+
+    Args:
+        graph_path: Content path to the PCG graph
+        param_name: Name of the parameter to set
+        default_value: Default value (must match declared param_type)
+
+    Returns:
+        Dictionary with param_name, new_value or error
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = pcg_parameter_manager.set_pcg_graph_parameter(
+            unreal, graph_path, param_name, default_value
+        )
+        return result
+    except Exception as e:
+        logger.error(f"set_pcg_graph_parameter error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def assign_pcg_graph(
+    graph_path: str,
+    actor_name: str = "",
+    blueprint_name: str = ""
+) -> Dict[str, Any]:
+    """
+    Assign a PCG graph to an actor's or Blueprint's PCGComponent.
+
+    Args:
+        graph_path: Content path to the PCG graph
+        actor_name: Name of an actor in the level (provide this OR blueprint_name)
+        blueprint_name: Name of a Blueprint asset (provide this OR actor_name)
+
+    Returns:
+        Dictionary with graph_path and target assignment info or error
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = pcg_parameter_manager.assign_pcg_graph(
+            unreal, graph_path,
+            actor_name=actor_name if actor_name else None,
+            blueprint_name=blueprint_name if blueprint_name else None
+        )
+        return result
+    except Exception as e:
+        logger.error(f"assign_pcg_graph error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def set_pcg_spawner_entries(
+    graph_path: str,
+    node_id: str,
+    entries: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """
+    Set mesh entries on a PCG Static Mesh Spawner node.
+
+    Replaces all existing mesh entries with the provided list.
+    Each entry specifies a static mesh asset and an optional selection weight.
+
+    Args:
+        graph_path: Content path to the PCG graph (e.g., "/Game/Custom/PCG/HabGenerator/PCG_Hab_Main")
+        node_id: FName of the StaticMeshSpawner node
+        entries: List of mesh entry dicts, each with:
+            - mesh_path (str): Content path to a static mesh (e.g., "/Game/ModularSciFi/.../SM_Wall_Merged")
+            - weight (int, optional): Selection weight for weighted random (default: 1)
+
+    Returns:
+        Dictionary with node_id, entry_count, or error
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = pcg_spawner_entries.set_pcg_spawner_entries(
+            unreal, graph_path, node_id, entries
+        )
+        return result
+    except Exception as e:
+        logger.error(f"set_pcg_spawner_entries error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def generate_pcg(
+    actor_name: str
+) -> Dict[str, Any]:
+    """
+    Force-generate a PCG graph on an actor's PCGComponent.
+
+    Args:
+        actor_name: Name of actor in the level with a PCGComponent
+
+    Returns:
+        Dictionary with success, actor_name or error
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = pcg_parameter_manager.generate_pcg(unreal, actor_name)
+        return result
+    except Exception as e:
+        logger.error(f"generate_pcg error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def get_pcg_node_property(
+    graph_path: str,
+    node_id: str,
+    property_name: str
+) -> Dict[str, Any]:
+    """
+    Read a property value from a PCG node's settings object.
+
+    Args:
+        graph_path: Content path to the PCG graph
+        node_id: FName of the node
+        property_name: Name of the property on UPCGSettings (supports dot-notation)
+
+    Returns:
+        Dictionary with node_id, property_name, property_type, property_value or error
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = pcg_node_properties.get_pcg_node_property(
+            unreal, graph_path, node_id, property_name
+        )
+        return result
+    except Exception as e:
+        logger.error(f"get_pcg_node_property error: {e}")
+        return {"success": False, "message": str(e)}
 
 
 # Run the server
 if __name__ == "__main__":
     logger.info("Starting Advanced MCP server with stdio transport")
-    mcp.run(transport='stdio') 
+    mcp.run(transport='stdio')

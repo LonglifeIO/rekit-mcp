@@ -30,4 +30,7 @@ private:
     TSharedPtr<FJsonObject> HandleListContentBrowserMeshes(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleGetActorDetails(const TSharedPtr<FJsonObject>& Params);
     TSharedPtr<FJsonObject> HandleDuplicateActor(const TSharedPtr<FJsonObject>& Params);
+
+    // Viewport screenshot
+    TSharedPtr<FJsonObject> HandleTakeScreenshot(const TSharedPtr<FJsonObject>& Params);
 };

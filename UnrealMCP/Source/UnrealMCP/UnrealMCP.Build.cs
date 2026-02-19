@@ -7,7 +7,7 @@ public class UnrealMCP : ModuleRules
 	public UnrealMCP(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		
+
 		PublicDefinitions.Add("UNREALMCP_EXPORTS=1");
 
 		PublicIncludePaths.AddRange(
@@ -15,7 +15,8 @@ public class UnrealMCP : ModuleRules
 				System.IO.Path.Combine(ModuleDirectory, "Public"),
 				System.IO.Path.Combine(ModuleDirectory, "Public/Commands"),
 				System.IO.Path.Combine(ModuleDirectory, "Public/Commands/BlueprintGraph"),
-				System.IO.Path.Combine(ModuleDirectory, "Public/Commands/BlueprintGraph/Nodes")
+				System.IO.Path.Combine(ModuleDirectory, "Public/Commands/BlueprintGraph/Nodes"),
+				System.IO.Path.Combine(ModuleDirectory, "Public/Commands/PCGGraph")
 			}
 		);
 
@@ -24,10 +25,11 @@ public class UnrealMCP : ModuleRules
 				System.IO.Path.Combine(ModuleDirectory, "Private"),
 				System.IO.Path.Combine(ModuleDirectory, "Private/Commands"),
 				System.IO.Path.Combine(ModuleDirectory, "Private/Commands/BlueprintGraph"),
-				System.IO.Path.Combine(ModuleDirectory, "Private/Commands/BlueprintGraph/Nodes")
+				System.IO.Path.Combine(ModuleDirectory, "Private/Commands/BlueprintGraph/Nodes"),
+				System.IO.Path.Combine(ModuleDirectory, "Private/Commands/PCGGraph")
 			}
 		);
-		
+
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
@@ -42,12 +44,15 @@ public class UnrealMCP : ModuleRules
 				"JsonUtilities",
 				"DeveloperSettings",
 				"PhysicsCore",
+				"RenderCore",         // For FlushRenderingCommands (screenshot)
 				"UnrealEd",           // For Blueprint editing
 				"BlueprintGraph",     // For K2Node classes (F15-F22)
-				"KismetCompiler"      // For Blueprint compilation (F15-F22)
+				"KismetCompiler",     // For Blueprint compilation (F15-F22)
+				"PCG",                // For UPCGGraph, UPCGNode, UPCGSettings, UPCGComponent
+				"StructUtils"         // For FInstancedPropertyBag (PCG graph parameters)
 			}
 		);
-		
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
@@ -60,7 +65,7 @@ public class UnrealMCP : ModuleRules
 				"AssetRegistry"
 			}
 		);
-		
+
 		if (Target.bBuildEditor == true)
 		{
 			PrivateDependencyModuleNames.AddRange(
@@ -72,7 +77,7 @@ public class UnrealMCP : ModuleRules
 				}
 			);
 		}
-		
+
 		DynamicallyLoadedModuleNames.AddRange(
 			new string[]
 			{
@@ -80,4 +85,4 @@ public class UnrealMCP : ModuleRules
 			}
 		);
 	}
-} 
+}

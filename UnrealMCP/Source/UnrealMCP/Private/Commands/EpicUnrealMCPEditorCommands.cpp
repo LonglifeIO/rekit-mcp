@@ -1,5 +1,6 @@
 #include "Commands/EpicUnrealMCPEditorCommands.h"
 #include "Commands/EpicUnrealMCPCommonUtils.h"
+#include "RenderingThread.h"
 #include "Editor.h"
 #include "EditorViewportClient.h"
 #include "LevelEditorViewport.h"
@@ -69,6 +70,10 @@ TSharedPtr<FJsonObject> FEpicUnrealMCPEditorCommands::HandleCommand(const FStrin
     else if (CommandType == TEXT("duplicate_actor"))
     {
         return HandleDuplicateActor(Params);
+    }
+    else if (CommandType == TEXT("take_screenshot"))
+    {
+        return HandleTakeScreenshot(Params);
     }
 
     return FEpicUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown editor command: %s"), *CommandType));
@@ -613,4 +618,80 @@ TSharedPtr<FJsonObject> FEpicUnrealMCPEditorCommands::HandleDuplicateActor(const
     // Fallback for non-StaticMeshActors: generic approach
     return FEpicUnrealMCPCommonUtils::CreateErrorResponse(
         FString::Printf(TEXT("Source actor '%s' is not a StaticMeshActor. duplicate_actor only supports StaticMeshActors."), *SourceName));
+}
+
+TSharedPtr<FJsonObject> FEpicUnrealMCPEditorCommands::HandleTakeScreenshot(const TSharedPtr<FJsonObject>& Params)
+{
+    // Get optional filename
+    FString Filename;
+    if (!Params->TryGetStringField(TEXT("filename"), Filename) || Filename.IsEmpty())
+    {
+        Filename = FPaths::ProjectSavedDir() / TEXT("Screenshots") / TEXT("MCP_Screenshot.png");
+    }
+
+    if (!GEditor)
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("No editor available"));
+    }
+
+    // Try GEditor->GetActiveViewport() first, then iterate all viewport clients
+    FViewport* Viewport = GEditor->GetActiveViewport();
+    if (!Viewport || Viewport->GetSizeXY().X == 0 || Viewport->GetSizeXY().Y == 0)
+    {
+        Viewport = nullptr;
+        for (FLevelEditorViewportClient* VC : GEditor->GetLevelViewportClients())
+        {
+            if (VC && VC->Viewport && VC->Viewport->GetSizeXY().X > 0 && VC->Viewport->GetSizeXY().Y > 0)
+            {
+                Viewport = VC->Viewport;
+                break;
+            }
+        }
+    }
+
+    if (!Viewport)
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("No viewport with valid size found. Ensure the UE5 viewport is visible and not obscured."));
+    }
+
+    int32 Width = Viewport->GetSizeXY().X;
+    int32 Height = Viewport->GetSizeXY().Y;
+
+    // Flush GPU pipeline so ReadPixels can complete without hanging
+    FlushRenderingCommands();
+
+    // Read pixels from viewport
+    TArray<FColor> Bitmap;
+    if (!Viewport->ReadPixels(Bitmap))
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to read viewport pixels"));
+    }
+
+    // Ensure directory exists
+    FString Directory = FPaths::GetPath(Filename);
+    IFileManager::Get().MakeDirectory(*Directory, true);
+
+    // Compress to PNG and save
+    TArray<uint8> CompressedPNG;
+    FImageUtils::CompressImageArray(Width, Height, Bitmap, CompressedPNG);
+
+    if (CompressedPNG.Num() == 0)
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Failed to compress viewport image"));
+    }
+
+    if (!FFileHelper::SaveArrayToFile(CompressedPNG, *Filename))
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(
+            FString::Printf(TEXT("Failed to save screenshot to: %s"), *Filename));
+    }
+
+    // Return result
+    TSharedPtr<FJsonObject> ResultJson = MakeShareable(new FJsonObject);
+    ResultJson->SetStringField(TEXT("status"), TEXT("success"));
+    ResultJson->SetStringField(TEXT("file_path"), Filename);
+    ResultJson->SetNumberField(TEXT("width"), Width);
+    ResultJson->SetNumberField(TEXT("height"), Height);
+
+    return ResultJson;
 }

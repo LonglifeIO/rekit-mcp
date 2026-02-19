@@ -29,43 +29,43 @@ class ActorNameManager:
     def generate_unique_name(self, base_name: str, unreal_connection=None) -> str:
         """
         Generate a unique actor name based on the desired base name.
-        
+
+        Uses local cache to avoid unnecessary UE round-trips. Only queries UE
+        for names not tracked in _known_actors.
+
         Strategy:
-        1. First try the base name as-is
-        2. If that exists, try base_name with session suffix
-        3. If that exists, try base_name with counter
-        4. If that exists, try base_name with session + counter + unique_id
+        1. First try the base name as-is (cache check only — no UE call if not in cache)
+        2. If that's in cache, try base_name with counter (increment from last known value)
+        3. Ultimate fallback: session + counter + UUID
         """
         # Clean the base name
         base_name = str(base_name).strip()
         if not base_name:
             base_name = f"Actor_{self._session_id}"
-        
-        # Strategy 1: Try base name as-is
-        if not self._actor_exists(base_name, unreal_connection):
+
+        # Strategy 1: Try base name as-is — only check local cache, skip UE query
+        # for names we haven't seen this session (trust that the user-provided name
+        # is intentional; if UE rejects it, the spawn will fail and retry handles it)
+        if base_name not in self._known_actors:
             return base_name
-        
-        # Strategy 2: Try with session ID
-        session_name = f"{base_name}_{self._session_id}"
-        if not self._actor_exists(session_name, unreal_connection):
-            return session_name
-        
-        # Strategy 3: Try with counter
+
+        # Strategy 2: Try with counter (trust local cache, no UE round-trips)
         counter_key = base_name
         if counter_key not in self._actor_counters:
             self._actor_counters[counter_key] = 0
-        
-        for attempt in range(1000):  # Prevent infinite loops
+
+        for _ in range(1000):  # Prevent infinite loops
             self._actor_counters[counter_key] += 1
             counter_name = f"{base_name}_{self._actor_counters[counter_key]}"
-            
-            if not self._actor_exists(counter_name, unreal_connection):
+
+            # Only check local cache — avoid UE round-trip
+            if counter_name not in self._known_actors:
                 return counter_name
-        
-        # Strategy 4: Ultimate fallback - session + counter + UUID
+
+        # Strategy 3: Ultimate fallback - session + counter + UUID
         unique_suffix = str(uuid.uuid4())[:8]
         final_name = f"{base_name}_{self._session_id}_{self._actor_counters[counter_key]}_{unique_suffix}"
-        
+
         logger.info(f"Generated unique name: {base_name} -> {final_name}")
         return final_name
     
