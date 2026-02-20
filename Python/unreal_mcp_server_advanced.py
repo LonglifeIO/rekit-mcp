@@ -3931,6 +3931,110 @@ def set_auto_validate(
     }
 
 
+# ============================================================================
+# Mesh Catalog Tools
+# ============================================================================
+
+def _load_mesh_catalog(catalog_name: str = "modularscifi_meshes") -> Dict[str, Any]:
+    """Load a mesh catalog JSON from the catalogs directory."""
+    catalog_dir = os.path.join(os.path.dirname(__file__), "catalogs")
+    catalog_path = os.path.join(catalog_dir, f"{catalog_name}.json")
+    if not os.path.isfile(catalog_path):
+        return {"success": False, "error": f"Catalog not found: {catalog_path}"}
+    with open(catalog_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+@mcp.tool()
+def search_mesh_catalog(
+    query: str = "",
+    category: str = "",
+    catalog: str = "modularscifi_meshes"
+) -> Dict[str, Any]:
+    """
+    Search the pre-built mesh catalog by name or category.
+
+    Much faster than list_content_browser_meshes — no UE5 query needed.
+    Returns mesh names, full asset paths (ready for spawn_static_mesh_actor),
+    categories, and tags.
+
+    Args:
+        query: Search string to match against mesh names (case-insensitive).
+               Empty string returns all meshes in the category.
+        category: Filter by category. Options: modular_building, compound_module,
+                  connector, interior, terrain, vegetation, infrastructure, stairs,
+                  prop, panel, tubes, construction, door, cargo, decal, utility,
+                  procedural. Empty string searches all categories.
+        catalog: Catalog file name (default: modularscifi_meshes).
+
+    Returns:
+        Dict with matching meshes, their paths, categories, and tags.
+    """
+    data = _load_mesh_catalog(catalog)
+    if "error" in data:
+        return data
+
+    meshes = data.get("meshes", [])
+    results = []
+
+    query_lower = query.lower()
+    category_lower = category.lower()
+
+    for m in meshes:
+        # Category filter
+        if category_lower and m.get("category", "").lower() != category_lower:
+            continue
+        # Name filter
+        if query_lower and query_lower not in m.get("name", "").lower():
+            continue
+        results.append({
+            "name": m["name"],
+            "path": m["path"],
+            "category": m["category"],
+            "tags": m.get("tags", []),
+            "size_cm": m.get("size_cm"),
+            "has_indoor_pair": m.get("has_indoor_pair", False),
+            "is_indoor_variant": m.get("is_indoor_variant", False),
+        })
+
+    return {
+        "success": True,
+        "query": query,
+        "category_filter": category,
+        "result_count": len(results),
+        "meshes": results,
+    }
+
+
+@mcp.tool()
+def get_mesh_categories(
+    catalog: str = "modularscifi_meshes"
+) -> Dict[str, Any]:
+    """
+    List all mesh categories in the catalog with counts and descriptions.
+
+    Use this to understand what types of meshes are available before
+    searching for specific ones.
+
+    Args:
+        catalog: Catalog file name (default: modularscifi_meshes).
+
+    Returns:
+        Dict with category names, counts, and descriptions.
+    """
+    data = _load_mesh_catalog(catalog)
+    if "error" in data:
+        return data
+
+    return {
+        "success": True,
+        "asset_pack": data.get("asset_pack", "unknown"),
+        "total_meshes": data.get("total_meshes", 0),
+        "categories": data.get("category_counts", {}),
+        "descriptions": data.get("category_descriptions", {}),
+    }
+
+
 # Run the server
 if __name__ == "__main__":
     logger.info("Starting Advanced MCP server with stdio transport")
