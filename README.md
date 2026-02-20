@@ -21,20 +21,21 @@ These tools fill the critical gap between "AI can build from basic shapes" and "
 | `duplicate_actor` | Copy a StaticMeshActor with offset, new rotation, or new scale |
 | `snap_actors` | Align one actor's face flush against another using bounding box math |
 | `take_screenshot` | Capture the active editor viewport as a PNG — returns the image to Claude for visual verification |
+| `validate_build` | Capture a validation screenshot after any build sequence for visual verification |
+| `set_auto_validate` | Toggle automatic screenshot validation on/off for compound spawn tools |
 
-### Viewport Screenshot Loop
+### Build Validation Loop
 
-The `take_screenshot` tool lets Claude see what's in the UE5 viewport. This enables a **build → screenshot → verify → iterate** workflow where Claude can visually check its own kitbash work and fix issues autonomously.
+Compound spawn tools automatically capture a viewport screenshot after building so Claude can inspect the result and fix issues before reporting. For manual kitbash sequences (multiple `spawn_static_mesh_actor` calls), call `validate_build` at the end.
 
 ```bash
-# 1. Build a hab from modular pieces
-> spawn_static_mesh_actor(name="Floor_01", mesh_path="/Game/ModularSciFi/.../SM_Modular_Merged.SM_Modular_Merged", ...)
+# Manual kitbash → validate at the end
+> spawn_static_mesh_actor(name="Wall_01", ...)
+> spawn_static_mesh_actor(name="Wall_02", ...)
+> validate_build(label="corridor_walls")
 
-# 2. Take a screenshot to verify placement
-> take_screenshot()
-
-# 3. Claude sees the image, spots a gap, and spawns a fix
-> spawn_static_mesh_actor(name="Wall_Fix_01", ...)
+# Disable auto-validation if iterating fast
+> set_auto_validate(enabled=False)
 ```
 
 ### Example Kitbash Workflow
@@ -71,7 +72,7 @@ ReKit includes all tools from the original unreal-engine-mcp, plus the kitbashin
 | **Category** | **Tools** | **Description** |
 |--------------|-----------|-----------------|
 | **Kitbashing** | `spawn_static_mesh_actor`, `list_content_browser_meshes`, `get_actor_details`, `duplicate_actor`, `snap_actors` | Place, browse, inspect, copy, and align Content Browser meshes |
-| **Viewport** | `take_screenshot` | Capture editor viewport as PNG for AI-driven visual verification |
+| **Viewport & Validation** | `take_screenshot`, `validate_build`, `set_auto_validate` | Capture editor viewport, validate builds visually, toggle auto-validation |
 | **PCG** | `generate_pcg`, `get_pcg_node_property`, `set_pcg_node_property`, `create_pcg_graph`, `add_pcg_node`, `connect_pcg_nodes`, `read_pcg_graph`, `assign_pcg_graph`, `set_pcg_graph_parameter`, `add_pcg_graph_parameter`, `set_pcg_spawner_entries` | Procedural Content Generation graph creation, editing, and execution |
 | **Blueprint Scripting** | `add_node`, `connect_nodes`, `delete_node`, `set_node_property`, `create_variable`, `set_blueprint_variable_properties`, `create_function`, `add_function_input`, `add_function_output`, `delete_function`, `rename_function` | Complete Blueprint programming with 23+ node types |
 | **Blueprint Analysis** | `read_blueprint_content`, `analyze_blueprint_graph`, `get_blueprint_variable_details`, `get_blueprint_function_details` | Deep inspection of Blueprint structure and execution flow |
@@ -165,7 +166,7 @@ graph TB
     B --> G[Blueprint System]
     B --> H[Materials & Physics]
     B --> I[Viewport & PCG]
-    I --> I1[Screenshot / Visual Verify]
+    I --> I1[Screenshot / Validate Build]
     I --> I2[PCG Graph Tools]
 ```
 
