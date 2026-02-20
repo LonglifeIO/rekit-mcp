@@ -12,9 +12,13 @@ import math
 import struct
 import time
 import threading
+import glob
+import shutil
+import ctypes
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Dict, Any, Optional, List
 import os
+from ctypes import wintypes
 from mcp.server.fastmcp import FastMCP, Image
 
 from helpers.infrastructure_creation import (
@@ -44,6 +48,7 @@ from helpers.bridge_aqueduct_creation import (
     build_suspension_bridge_structure, build_aqueduct_structure
 )
 from helpers.outpost_creation import build_outpost_compound
+from helpers import hab_spawner
 
 # ============================================================================
 # Blueprint Node Graph Tools
@@ -81,6 +86,10 @@ logger = logging.getLogger("UnrealMCP_Advanced")
 # Configuration
 UNREAL_HOST = "127.0.0.1"
 UNREAL_PORT = 55557
+
+# Auto-validation: compound spawn tools take a screenshot after building.
+# Toggle at runtime via the set_auto_validate() tool.
+AUTO_VALIDATE_SPAWNS = True
 
 class UnrealConnection:
     """
@@ -835,6 +844,126 @@ def take_screenshot(filename: str = "") -> list:
         filename: Optional file path for the screenshot. Defaults to
                   ProjectSaved/Screenshots/MCP_Screenshot.png
     """
+    if os.name == "nt":
+        try:
+            user32 = ctypes.WinDLL("user32", use_last_error=True)
+            windows = []
+
+            enum_proc = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+
+            def _callback(hwnd, _lparam):
+                if not user32.IsWindowVisible(hwnd):
+                    return True
+                title_len = user32.GetWindowTextLengthW(hwnd)
+                if title_len <= 0:
+                    return True
+                title_buffer = ctypes.create_unicode_buffer(title_len + 1)
+                user32.GetWindowTextW(hwnd, title_buffer, title_len + 1)
+                title = title_buffer.value.strip()
+                if title.endswith(" - Unreal Editor"):
+                    windows.append((int(hwnd), title))
+                return True
+
+            user32.EnumWindows(enum_proc(_callback), 0)
+
+            if windows:
+                hwnd, window_title = windows[0]
+                search_dirs = []
+
+                def _add_dir(path: str):
+                    normalized = os.path.normpath(path)
+                    if normalized not in search_dirs and os.path.isdir(normalized):
+                        search_dirs.append(normalized)
+
+                if filename:
+                    explicit_dir = os.path.dirname(os.path.abspath(filename))
+                    if explicit_dir:
+                        _add_dir(explicit_dir)
+
+                script_path = os.path.abspath(__file__)
+                projects_root = os.path.dirname(os.path.dirname(os.path.dirname(script_path)))
+                project_name = window_title.replace(" - Unreal Editor", "").strip()
+                if project_name:
+                    _add_dir(os.path.join(projects_root, project_name, "Saved", "Screenshots", "WindowsEditor"))
+                    _add_dir(os.path.join(projects_root, project_name, "Saved", "Screenshots"))
+
+                _add_dir(os.path.join(os.getcwd(), "Saved", "Screenshots", "WindowsEditor"))
+                _add_dir(os.path.join(os.getcwd(), "Saved", "Screenshots"))
+
+                for sibling in glob.glob(os.path.join(projects_root, "*", "Saved", "Screenshots", "WindowsEditor")):
+                    _add_dir(sibling)
+
+                def _latest_screenshot() -> str:
+                    latest_path = ""
+                    latest_mtime = -1.0
+                    for directory in search_dirs:
+                        for path in glob.glob(os.path.join(directory, "ScreenShot*.png")):
+                            try:
+                                mtime = os.path.getmtime(path)
+                            except OSError:
+                                continue
+                            if mtime > latest_mtime:
+                                latest_mtime = mtime
+                                latest_path = path
+                    return latest_path
+
+                before_file = _latest_screenshot()
+                before_mtime = os.path.getmtime(before_file) if before_file and os.path.exists(before_file) else -1.0
+
+                # Send F9 directly to the UE window without activating/moving it.
+                vk_f9 = 0x78
+                keyeventf_keyup = 0x0002
+                wm_keydown = 0x0100
+                wm_keyup = 0x0101
+                user32.PostMessageW(wintypes.HWND(hwnd), wm_keydown, vk_f9, 0)
+                time.sleep(0.04)
+                user32.PostMessageW(wintypes.HWND(hwnd), wm_keyup, vk_f9, 0)
+
+                captured_file = ""
+                deadline = time.time() + 6.0
+                while time.time() < deadline:
+                    latest_file = _latest_screenshot()
+                    if latest_file and os.path.exists(latest_file):
+                        latest_mtime = os.path.getmtime(latest_file)
+                        if not before_file or latest_file != before_file or latest_mtime > before_mtime:
+                            captured_file = latest_file
+                            break
+                    time.sleep(0.2)
+
+                if captured_file:
+                    final_path = captured_file
+                    if filename:
+                        requested_path = os.path.abspath(filename)
+                        try:
+                            final_dir = os.path.dirname(requested_path)
+                            if final_dir:
+                                os.makedirs(final_dir, exist_ok=True)
+                            shutil.copy2(captured_file, requested_path)
+                            final_path = requested_path
+                        except Exception as copy_error:
+                            logger.warning(f"Could not copy screenshot to requested path '{requested_path}': {copy_error}. Using original screenshot path.")
+
+                    width = 0
+                    height = 0
+                    try:
+                        with open(final_path, "rb") as image_file:
+                            header = image_file.read(24)
+                        if len(header) >= 24 and header[:8] == b"\x89PNG\r\n\x1a\n":
+                            width, height = struct.unpack(">II", header[16:24])
+                    except Exception:
+                        pass
+
+                    return [
+                        f"Screenshot saved: {final_path} ({width}x{height})",
+                        Image(path=final_path),
+                    ]
+                logger.warning("F9 screenshot path did not produce a new file; falling back to Unreal command")
+            else:
+                logger.warning("No Unreal Editor window found for F9 screenshot; falling back to Unreal command")
+
+        except Exception as f9_error:
+            logger.warning(f"F9 screenshot path failed: {f9_error}; falling back to Unreal command")
+
     unreal = get_unreal_connection()
     try:
         params = {}
@@ -3589,6 +3718,217 @@ def get_pcg_node_property(
     except Exception as e:
         logger.error(f"get_pcg_node_property error: {e}")
         return {"success": False, "message": str(e)}
+
+
+# ============================================================================
+# Hab Variation Tools
+# ============================================================================
+
+@mcp.tool()
+def list_hab_variations(
+    variations_dir: str = ""
+) -> Dict[str, Any]:
+    """
+    List available hab variation JSON files with names, descriptions, and piece counts.
+
+    Each variation is a pre-verified JSON file that defines a complete hab layout
+    (floors, walls, doors, windows, corners, roof) with correct transforms.
+
+    Args:
+        variations_dir: Override path to the variations directory.
+            Defaults to F:/UE Projects/ThoughtSpace/docs/hab_variations.
+
+    Returns:
+        Dictionary with count and list of available variations.
+    """
+    try:
+        vdir = variations_dir if variations_dir else None
+        return hab_spawner.list_variations(vdir)
+    except Exception as e:
+        logger.error(f"list_hab_variations error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def spawn_hab(
+    variation: str,
+    location: List[float] = None,
+    rotation: float = 0.0,
+    name_prefix: str = "Hab",
+    variations_dir: str = "",
+    spawn_delay: float = 0.1,
+    screenshot: bool = True
+) -> list:
+    """
+    Spawn a complete hab from a pre-verified variation JSON file.
+
+    One tool call spawns an entire hab (14-26 pieces) sequentially with automatic
+    delays between spawns to keep UE5 stable. Each piece gets a unique actor name
+    based on the name_prefix and piece label.
+
+    After spawning, automatically captures a viewport screenshot via F9 for visual
+    validation (disable with screenshot=False).
+
+    Variations are matched by filename, partial key, or JSON name field.
+    Call list_hab_variations() first to see what's available.
+
+    Args:
+        variation: Variation identifier. Examples: "2x1_V1", "2x1_V1_skylight",
+            "Straight3_Corridor", "L5_skylight". Matches against filenames and
+            JSON name fields (case-insensitive, fuzzy).
+        location: [x, y, z] world position for the hab origin. Required.
+        rotation: Yaw rotation in degrees to apply to the entire hab (default 0).
+            The rotation is applied to all piece positions and yaws.
+        name_prefix: Prefix for spawned actor names (default "Hab").
+            Each piece becomes {prefix}_{label}, e.g. "Camp_Hab01_East_floor".
+        variations_dir: Override path to the variations directory.
+            Defaults to F:/UE Projects/ThoughtSpace/docs/hab_variations.
+        spawn_delay: Seconds to wait between each spawn call (default 0.1).
+            Increase if UE5 is under load. Total time = pieces * delay.
+        screenshot: Take a validation screenshot after spawning (default True).
+
+    Returns:
+        List with spawn summary text and optional validation screenshot image.
+    """
+    if location is None:
+        return [json.dumps({"success": False, "message": "location is required: [x, y, z]"})]
+
+    if len(location) != 3:
+        return [json.dumps({"success": False, "message": "location must be [x, y, z] (3 values)"})]
+
+    unreal = get_unreal_connection()
+    if not unreal:
+        return [json.dumps({"success": False, "message": "Failed to connect to Unreal Engine"})]
+
+    try:
+        vdir = variations_dir if variations_dir else None
+        result = hab_spawner.spawn_hab_from_variation(
+            unreal_connection=unreal,
+            variation=variation,
+            location=location,
+            rotation=rotation,
+            name_prefix=name_prefix,
+            variations_dir=vdir,
+            spawn_delay=spawn_delay,
+        )
+    except Exception as e:
+        logger.error(f"spawn_hab error: {e}")
+        return [json.dumps({"success": False, "message": str(e)})]
+
+    # Build summary text
+    summary = result.get("message", "Spawn complete")
+    result_json = json.dumps(result)
+
+    if not screenshot or not AUTO_VALIDATE_SPAWNS:
+        return [f"{summary}\n\n{result_json}"]
+
+    # Validate via the standalone validate_build tool
+    safe_variation = variation.replace(" ", "_").replace("/", "_")
+    label = f"spawn_hab_{safe_variation}_{name_prefix}"
+    validation = _validate_build_internal(label)
+
+    output = [f"{summary}\n\n{result_json}"]
+    if validation["image"] is not None:
+        output.append(validation["image"])
+    else:
+        output[0] += f"\n\n(Screenshot failed: {validation.get('error', 'unknown')})"
+    return output
+
+
+# ============================================================================
+# Build Validation Tool
+# ============================================================================
+
+def _validate_build_internal(label: str = "build") -> Dict[str, Any]:
+    """
+    Internal helper: takes a validation screenshot via F9 and returns the result.
+
+    Returns:
+        Dict with "image" (Image object or None) and optional "error" string.
+    """
+    try:
+        safe_label = label.replace(" ", "_").replace("/", "_").replace("\\", "_")
+        screenshot_filename = os.path.join(
+            r"F:\UE Projects\ThoughtSpace\Saved\Screenshots",
+            f"validate_{safe_label}.png"
+        )
+        screenshot_result = take_screenshot(filename=screenshot_filename)
+
+        if len(screenshot_result) >= 2:
+            return {"image": screenshot_result[1], "path": screenshot_filename}
+        else:
+            return {"image": None, "error": "F9 screenshot did not produce a file"}
+
+    except Exception as e:
+        logger.warning(f"validate_build screenshot failed: {e}")
+        return {"image": None, "error": str(e)}
+
+
+@mcp.tool()
+def validate_build(
+    label: str = "build"
+) -> list:
+    """
+    Capture a validation screenshot of the current UE5 viewport.
+
+    Call this after any sequence of spawn operations (manual kitbashing,
+    hab building, prop placement, etc.) to visually verify the result.
+    The screenshot is returned as an image for Claude to inspect.
+
+    This is automatically called by spawn_hab, but should be called manually
+    after any other build sequence (e.g. multiple spawn_static_mesh_actor calls).
+
+    Args:
+        label: Descriptive label for the screenshot filename
+            (e.g. "camp_layout", "corridor_test", "roof_fix").
+
+    Returns:
+        List with status text and viewport screenshot image.
+    """
+    validation = _validate_build_internal(label)
+
+    if validation["image"] is not None:
+        return [
+            f"Validation screenshot captured: {validation.get('path', label)}",
+            validation["image"],
+        ]
+    else:
+        return [f"Validation screenshot failed: {validation.get('error', 'unknown')} — check viewport manually"]
+
+
+@mcp.tool()
+def set_auto_validate(
+    enabled: bool = True
+) -> Dict[str, Any]:
+    """
+    Toggle automatic screenshot validation after compound spawn operations.
+
+    When enabled (default), tools like spawn_hab automatically capture a viewport
+    screenshot after building so Claude can visually verify the result.
+
+    Disable this if screenshots are slowing down your workflow or if you're
+    doing rapid iteration and don't need visual checks every time.
+
+    Note: This only affects compound tools (spawn_hab, future kitbash tools).
+    Single-piece spawns (spawn_static_mesh_actor) are never auto-validated.
+    Use validate_build() manually after a sequence of single-piece spawns.
+
+    Args:
+        enabled: True to enable auto-validation (default), False to disable.
+
+    Returns:
+        Dictionary confirming the new setting.
+    """
+    global AUTO_VALIDATE_SPAWNS
+    AUTO_VALIDATE_SPAWNS = enabled
+    state = "enabled" if enabled else "disabled"
+    logger.info(f"Auto-validate spawns: {state}")
+    return {
+        "success": True,
+        "auto_validate": enabled,
+        "message": f"Auto-validation screenshots {state}. "
+                   f"{'Compound spawn tools will now capture a screenshot after building.' if enabled else 'Screenshots disabled — use validate_build() manually when needed.'}"
+    }
 
 
 # Run the server
