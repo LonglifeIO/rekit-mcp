@@ -133,7 +133,7 @@ TSharedPtr<FJsonObject> FPCGParameterManager::AddGraphParameter(const TSharedPtr
     // Add the parameter to the graph
     Graph->AddUserParameters(Descs);
 
-    Graph->NotifyGraphChanged(EPCGChangeType::Settings);
+    Graph->ForceNotificationForEditor(EPCGChangeType::Settings);
     Graph->GetPackage()->MarkPackageDirty();
 
     TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
@@ -202,103 +202,98 @@ TSharedPtr<FJsonObject> FPCGParameterManager::SetGraphParameter(const TSharedPtr
             FString::Printf(TEXT("Parameter '%s' not found in graph's user parameters"), *ParamName));
     }
 
-    // Get mutable access to the user parameters
-    FInstancedPropertyBag* UserParams = Graph->GetMutableUserParametersStruct();
-    if (!UserParams)
-    {
-        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(
-            TEXT("Could not get mutable user parameters from graph."));
-    }
-
-    // Set the value based on type
+    // Set the value based on type using the callback-based mutable access
     TSharedPtr<FJsonValue> DefaultValue = Params->TryGetField(TEXT("default_value"));
     bool bSuccess = false;
     FString ValueStr;
 
-    switch (FoundDesc->ValueType)
+    Graph->UpdateUserParametersStruct([&](FInstancedPropertyBag& UserParams)
     {
-    case EPropertyBagPropertyType::Bool:
-    {
-        bool bValue = false;
-        if (DefaultValue->TryGetBool(bValue))
+        switch (FoundDesc->ValueType)
         {
-            bSuccess = (UserParams->SetValueBool(FName(*ParamName), bValue) == EPropertyBagResult::Success);
-            ValueStr = bValue ? TEXT("true") : TEXT("false");
-        }
-        break;
-    }
-    case EPropertyBagPropertyType::Int32:
-    {
-        double NumValue = 0;
-        if (DefaultValue->TryGetNumber(NumValue))
+        case EPropertyBagPropertyType::Bool:
         {
-            bSuccess = (UserParams->SetValueInt32(FName(*ParamName), static_cast<int32>(NumValue)) == EPropertyBagResult::Success);
-            ValueStr = FString::FromInt(static_cast<int32>(NumValue));
+            bool bValue = false;
+            if (DefaultValue->TryGetBool(bValue))
+            {
+                bSuccess = (UserParams.SetValueBool(FName(*ParamName), bValue) == EPropertyBagResult::Success);
+                ValueStr = bValue ? TEXT("true") : TEXT("false");
+            }
+            break;
         }
-        break;
-    }
-    case EPropertyBagPropertyType::Int64:
-    {
-        double NumValue = 0;
-        if (DefaultValue->TryGetNumber(NumValue))
+        case EPropertyBagPropertyType::Int32:
         {
-            bSuccess = (UserParams->SetValueInt64(FName(*ParamName), static_cast<int64>(NumValue)) == EPropertyBagResult::Success);
-            ValueStr = FString::Printf(TEXT("%lld"), static_cast<int64>(NumValue));
+            double NumValue = 0;
+            if (DefaultValue->TryGetNumber(NumValue))
+            {
+                bSuccess = (UserParams.SetValueInt32(FName(*ParamName), static_cast<int32>(NumValue)) == EPropertyBagResult::Success);
+                ValueStr = FString::FromInt(static_cast<int32>(NumValue));
+            }
+            break;
         }
-        break;
-    }
-    case EPropertyBagPropertyType::Float:
-    {
-        double NumValue = 0;
-        if (DefaultValue->TryGetNumber(NumValue))
+        case EPropertyBagPropertyType::Int64:
         {
-            bSuccess = (UserParams->SetValueFloat(FName(*ParamName), static_cast<float>(NumValue)) == EPropertyBagResult::Success);
-            ValueStr = FString::SanitizeFloat(static_cast<float>(NumValue));
+            double NumValue = 0;
+            if (DefaultValue->TryGetNumber(NumValue))
+            {
+                bSuccess = (UserParams.SetValueInt64(FName(*ParamName), static_cast<int64>(NumValue)) == EPropertyBagResult::Success);
+                ValueStr = FString::Printf(TEXT("%lld"), static_cast<int64>(NumValue));
+            }
+            break;
         }
-        break;
-    }
-    case EPropertyBagPropertyType::Double:
-    {
-        double NumValue = 0;
-        if (DefaultValue->TryGetNumber(NumValue))
+        case EPropertyBagPropertyType::Float:
         {
-            bSuccess = (UserParams->SetValueDouble(FName(*ParamName), NumValue) == EPropertyBagResult::Success);
-            ValueStr = FString::SanitizeFloat(NumValue);
+            double NumValue = 0;
+            if (DefaultValue->TryGetNumber(NumValue))
+            {
+                bSuccess = (UserParams.SetValueFloat(FName(*ParamName), static_cast<float>(NumValue)) == EPropertyBagResult::Success);
+                ValueStr = FString::SanitizeFloat(static_cast<float>(NumValue));
+            }
+            break;
         }
-        break;
-    }
-    case EPropertyBagPropertyType::String:
-    {
-        FString StrValue;
-        if (DefaultValue->TryGetString(StrValue))
+        case EPropertyBagPropertyType::Double:
         {
-            bSuccess = (UserParams->SetValueString(FName(*ParamName), StrValue) == EPropertyBagResult::Success);
-            ValueStr = StrValue;
+            double NumValue = 0;
+            if (DefaultValue->TryGetNumber(NumValue))
+            {
+                bSuccess = (UserParams.SetValueDouble(FName(*ParamName), NumValue) == EPropertyBagResult::Success);
+                ValueStr = FString::SanitizeFloat(NumValue);
+            }
+            break;
         }
-        break;
-    }
-    case EPropertyBagPropertyType::Name:
-    {
-        FString StrValue;
-        if (DefaultValue->TryGetString(StrValue))
+        case EPropertyBagPropertyType::String:
         {
-            bSuccess = (UserParams->SetValueName(FName(*ParamName), FName(*StrValue)) == EPropertyBagResult::Success);
-            ValueStr = StrValue;
+            FString StrValue;
+            if (DefaultValue->TryGetString(StrValue))
+            {
+                bSuccess = (UserParams.SetValueString(FName(*ParamName), StrValue) == EPropertyBagResult::Success);
+                ValueStr = StrValue;
+            }
+            break;
         }
-        break;
-    }
-    default:
-    {
-        // For struct types (Vector, Rotator, etc.), we need to use SetValueSerialize
-        FString StrValue;
-        if (DefaultValue->TryGetString(StrValue))
+        case EPropertyBagPropertyType::Name:
         {
-            bSuccess = (UserParams->SetValueSerialize(FName(*ParamName), StrValue) == EPropertyBagResult::Success);
-            ValueStr = StrValue;
+            FString StrValue;
+            if (DefaultValue->TryGetString(StrValue))
+            {
+                bSuccess = (UserParams.SetValueName(FName(*ParamName), FName(*StrValue)) == EPropertyBagResult::Success);
+                ValueStr = StrValue;
+            }
+            break;
         }
-        break;
-    }
-    }
+        default:
+        {
+            // For struct types (Vector, Rotator, etc.), use SetValueSerializedString
+            FString StrValue;
+            if (DefaultValue->TryGetString(StrValue))
+            {
+                bSuccess = (UserParams.SetValueSerializedString(FName(*ParamName), StrValue) == EPropertyBagResult::Success);
+                ValueStr = StrValue;
+            }
+            break;
+        }
+        }
+    });
 
     if (!bSuccess)
     {
@@ -306,7 +301,7 @@ TSharedPtr<FJsonObject> FPCGParameterManager::SetGraphParameter(const TSharedPtr
             FString::Printf(TEXT("Failed to set value for parameter '%s'"), *ParamName));
     }
 
-    Graph->NotifyGraphChanged(EPCGChangeType::Settings);
+    Graph->ForceNotificationForEditor(EPCGChangeType::Settings);
     Graph->GetPackage()->MarkPackageDirty();
 
     TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
@@ -367,6 +362,8 @@ TSharedPtr<FJsonObject> FPCGParameterManager::AssignPCGGraph(const TSharedPtr<FJ
         }
 
         PCGComp->SetGraph(Graph);
+        PCGComp->CleanupLocal(/*bRemoveComponents=*/true, /*bSave=*/false);
+        PCGComp->Generate(/*bForce=*/true);
 
         TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
         Result->SetBoolField(TEXT("success"), true);
@@ -398,6 +395,7 @@ TSharedPtr<FJsonObject> FPCGParameterManager::AssignPCGGraph(const TSharedPtr<FJ
                     if (PCGComp)
                     {
                         PCGComp->SetGraph(Graph);
+                        // Note: SCS component templates don't need GenerateLocal — they're templates, not live instances
 
                         TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
                         Result->SetBoolField(TEXT("success"), true);
@@ -436,4 +434,51 @@ TSharedPtr<FJsonObject> FPCGParameterManager::AssignPCGGraph(const TSharedPtr<FJ
 
     return FEpicUnrealMCPCommonUtils::CreateErrorResponse(
         TEXT("Must provide either 'actor_name' or 'blueprint_name' parameter"));
+}
+
+TSharedPtr<FJsonObject> FPCGParameterManager::GeneratePCG(const TSharedPtr<FJsonObject>& Params)
+{
+    FString ActorName;
+    if (!Params->TryGetStringField(TEXT("actor_name"), ActorName))
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'actor_name' parameter"));
+    }
+
+    UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+    if (!World)
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("No editor world available"));
+    }
+
+    AActor* FoundActor = nullptr;
+    for (TActorIterator<AActor> It(World); It; ++It)
+    {
+        if (It->GetActorLabel() == ActorName || It->GetName() == ActorName)
+        {
+            FoundActor = *It;
+            break;
+        }
+    }
+
+    if (!FoundActor)
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(
+            FString::Printf(TEXT("Actor '%s' not found in the level"), *ActorName));
+    }
+
+    UPCGComponent* PCGComp = FoundActor->FindComponentByClass<UPCGComponent>();
+    if (!PCGComp)
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(
+            FString::Printf(TEXT("Actor '%s' has no PCGComponent"), *ActorName));
+    }
+
+    PCGComp->CleanupLocal(/*bRemoveComponents=*/true, /*bSave=*/false);
+    PCGComp->Generate(/*bForce=*/true);
+
+    TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);
+    Result->SetBoolField(TEXT("success"), true);
+    Result->SetStringField(TEXT("actor_name"), ActorName);
+    Result->SetStringField(TEXT("message"), TEXT("PCG generation triggered"));
+    return Result;
 }

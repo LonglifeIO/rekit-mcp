@@ -49,4 +49,10 @@ private:
 
     // Set mesh entries on a Static Mesh Spawner node
     TSharedPtr<FJsonObject> HandleSetPCGSpawnerEntries(const TSharedPtr<FJsonObject>& Params);
+
+    // Force-generate a PCG graph on an actor's PCGComponent
+    TSharedPtr<FJsonObject> HandleGeneratePCG(const TSharedPtr<FJsonObject>& Params);
+
+    // Read a property value from a PCG node's settings
+    TSharedPtr<FJsonObject> HandleGetPCGNodeProperty(const TSharedPtr<FJsonObject>& Params);
 };

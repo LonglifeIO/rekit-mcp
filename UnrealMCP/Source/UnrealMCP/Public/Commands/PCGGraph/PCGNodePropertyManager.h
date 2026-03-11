@@ -22,6 +22,16 @@ public:
      */
     static TSharedPtr<FJsonObject> SetNodeProperty(const TSharedPtr<FJsonObject>& Params);
 
+    /**
+     * Read a property value from a PCG node's settings object
+     * @param Params JSON parameters:
+     *   - graph_path (string): Content path to the PCG graph
+     *   - node_id (string): FName of the node
+     *   - property_name (string): Name of the property on UPCGSettings (supports dot-notation)
+     * @return JSON with node_id, property_name, property_type, property_value
+     */
+    static TSharedPtr<FJsonObject> GetNodeProperty(const TSharedPtr<FJsonObject>& Params);
+
 private:
     /**
      * Set a property value on a UObject using reflection

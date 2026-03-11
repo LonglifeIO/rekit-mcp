@@ -1,0 +1,47 @@
+{
+  "name": "2x1_Basic_V1",
+  "description": "Simple 2x1 rectangular hab with 1 door (south-east cell), 2 windows (north wall), solid walls elsewhere. 14 pieces total. Door placement and optional skylight roof are variation points for future variants.",
+  "grid_rotation_deg": 0,
+  "cell_size_cm": 500,
+  "origin_world": {"x": -295000, "y": -133000, "z": -25700},
+  "cells": [
+    {"grid": [0, 0], "label": "east"},
+    {"grid": [-1, 0], "label": "west"}
+  ],
+  "pieces": [
+    {"index": 1,  "type": "floor",  "mesh": "SM_Modular_Merged",                "rel": [0, 0, 0],       "yaw": 0,    "label": "East floor"},
+    {"index": 2,  "type": "floor",  "mesh": "SM_Modular_Merged",                "rel": [-500, 0, 0],    "yaw": 0,    "label": "West floor"},
+
+    {"index": 3,  "type": "door",   "mesh": "SM_Modular_DoorModule_Merged",     "rel": [0, 0, 0],       "yaw": -90,  "label": "South door (east cell)"},
+    {"index": 4,  "type": "wall",   "mesh": "SM_Modular_Wall_1_Merged",         "rel": [-500, 0, 0],    "yaw": -90,  "label": "South wall (west cell)"},
+    {"index": 5,  "type": "wall",   "mesh": "SM_Modular_Wall_1_Merged",         "rel": [0, 500, 0],     "yaw": 0,    "label": "East wall"},
+    {"index": 6,  "type": "window", "mesh": "SM_Modular_WallWindow_3_Merged",   "rel": [-500, 500, 0],  "yaw": 90,   "label": "North window (east cell)"},
+    {"index": 7,  "type": "window", "mesh": "SM_WallWindow_1_Merged",           "rel": [-1000, 500, 0], "yaw": 90,   "label": "North window (west cell)"},
+    {"index": 8,  "type": "wall",   "mesh": "SM_Modular_Wall_1_Merged",         "rel": [-1000, 0, 0],   "yaw": 180,  "label": "West wall"},
+
+    {"index": 9,  "type": "corner", "mesh": "SM_Modular_Corner_Merged",         "rel": [0, 0, 0],       "yaw": -90,  "label": "SE corner"},
+    {"index": 10, "type": "corner", "mesh": "SM_Modular_Corner_Merged",         "rel": [0, 500, 0],     "yaw": 0,    "label": "NE corner"},
+    {"index": 11, "type": "corner", "mesh": "SM_Modular_Corner_Merged",         "rel": [-1000, 500, 0], "yaw": 90,   "label": "NW corner"},
+    {"index": 12, "type": "corner", "mesh": "SM_Modular_Corner_Merged",         "rel": [-1000, 0, 0],   "yaw": 180,  "label": "SW corner"},
+
+    {"index": 13, "type": "roof",   "mesh": "SM_Modular_RoofModule_Merged",     "rel": [0, 0, 0],       "yaw": 0,    "label": "East roof"},
+    {"index": 14, "type": "roof",   "mesh": "SM_Modular_RoofModule_Merged",     "rel": [-500, 0, 0],    "yaw": 0,    "label": "West roof"}
+  ],
+  "mesh_paths": {
+    "SM_Modular_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_Floor/SM_Modular_Merged",
+    "SM_Modular_RoofModule_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_Ceiling/SM_Modular_RoofModule_Merged",
+    "SM_Modular_Wall_1_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_Wall_1/SM_Modular_Wall_1_Merged",
+    "SM_WallWindow_1_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_WallWindow_1/SM_WallWindow_1_Merged",
+    "SM_Modular_WallWindow_3_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_WallWindow_3/SM_Modular_WallWindow_3_Merged",
+    "SM_Modular_DoorModule_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_Door_Var1/SM_Modular_DoorModule_Merged",
+    "SM_Modular_Corner_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_Corner/SM_Modular_Corner_Merged"
+  },
+  "notes": [
+    "All positions are in LOCAL space relative to the hab origin (east cell floor pivot).",
+    "Roof pieces placed at same Z as floors — mesh pivot is at floor level, geometry offsets up internally.",
+    "North wall uses two different window variants (WallWindow_1 + WallWindow_3) for proper glass continuity.",
+    "Variation points: door position (currently south-east), roof type (currently solid, skylight planned).",
+    "Grid is axis-aligned (0 deg rotation). Cells extend in -X direction from origin.",
+    "Built and verified in-editor at (-295000, -133000, -25700) as v2_Hab2x1_* actors."
+  ]
+}

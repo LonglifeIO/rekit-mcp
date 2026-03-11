@@ -16,7 +16,8 @@ public class UnrealMCP : ModuleRules
 				System.IO.Path.Combine(ModuleDirectory, "Public/Commands"),
 				System.IO.Path.Combine(ModuleDirectory, "Public/Commands/BlueprintGraph"),
 				System.IO.Path.Combine(ModuleDirectory, "Public/Commands/BlueprintGraph/Nodes"),
-				System.IO.Path.Combine(ModuleDirectory, "Public/Commands/PCGGraph")
+				System.IO.Path.Combine(ModuleDirectory, "Public/Commands/PCGGraph"),
+				System.IO.Path.Combine(ModuleDirectory, "Public/Commands/MaterialGraph")
 			}
 		);
 
@@ -26,7 +27,8 @@ public class UnrealMCP : ModuleRules
 				System.IO.Path.Combine(ModuleDirectory, "Private/Commands"),
 				System.IO.Path.Combine(ModuleDirectory, "Private/Commands/BlueprintGraph"),
 				System.IO.Path.Combine(ModuleDirectory, "Private/Commands/BlueprintGraph/Nodes"),
-				System.IO.Path.Combine(ModuleDirectory, "Private/Commands/PCGGraph")
+				System.IO.Path.Combine(ModuleDirectory, "Private/Commands/PCGGraph"),
+				System.IO.Path.Combine(ModuleDirectory, "Private/Commands/MaterialGraph")
 			}
 		);
 
@@ -49,7 +51,9 @@ public class UnrealMCP : ModuleRules
 				"BlueprintGraph",     // For K2Node classes (F15-F22)
 				"KismetCompiler",     // For Blueprint compilation (F15-F22)
 				"PCG",                // For UPCGGraph, UPCGNode, UPCGSettings, UPCGComponent
-				"StructUtils"         // For FInstancedPropertyBag (PCG graph parameters)
+				"StructUtils",        // For FInstancedPropertyBag (PCG graph parameters)
+				"MaterialEditor",     // For UMaterialEditingLibrary (material graph commands)
+				"Landscape"           // For ALandscapeProxy (landscape material assignment)
 			}
 		);
 

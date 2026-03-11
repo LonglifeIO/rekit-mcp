@@ -55,10 +55,11 @@
 #include "Commands/EpicUnrealMCPBlueprintCommands.h"
 #include "Commands/EpicUnrealMCPBlueprintGraphCommands.h"
 #include "Commands/EpicUnrealMCPPCGGraphCommands.h"
+#include "Commands/EpicUnrealMCPMaterialGraphCommands.h"
 #include "Commands/EpicUnrealMCPCommonUtils.h"
 
 // Default settings
-#define MCP_SERVER_HOST "127.0.0.1"
+#define MCP_SERVER_HOST "0.0.0.0"
 #define MCP_SERVER_PORT 55557
 
 UEpicUnrealMCPBridge::UEpicUnrealMCPBridge()
@@ -67,6 +68,7 @@ UEpicUnrealMCPBridge::UEpicUnrealMCPBridge()
     BlueprintCommands = MakeShared<FEpicUnrealMCPBlueprintCommands>();
     BlueprintGraphCommands = MakeShared<FEpicUnrealMCPBlueprintGraphCommands>();
     PCGGraphCommands = MakeShared<FEpicUnrealMCPPCGGraphCommands>();
+    MaterialGraphCommands = MakeShared<FEpicUnrealMCPMaterialGraphCommands>();
 }
 
 UEpicUnrealMCPBridge::~UEpicUnrealMCPBridge()
@@ -75,6 +77,7 @@ UEpicUnrealMCPBridge::~UEpicUnrealMCPBridge()
     BlueprintCommands.Reset();
     BlueprintGraphCommands.Reset();
     PCGGraphCommands.Reset();
+    MaterialGraphCommands.Reset();
 }
 
 // Initialize subsystem
@@ -284,6 +287,17 @@ FString UEpicUnrealMCPBridge::ExecuteCommand(const FString& CommandType, const T
                      CommandType == TEXT("get_pcg_node_property"))
             {
                 ResultJson = PCGGraphCommands->HandleCommand(CommandType, Params);
+            }
+            // Material Graph Commands
+            else if (CommandType == TEXT("create_material") ||
+                     CommandType == TEXT("add_material_expression") ||
+                     CommandType == TEXT("set_material_expression_param") ||
+                     CommandType == TEXT("connect_material_expressions") ||
+                     CommandType == TEXT("connect_material_to_output") ||
+                     CommandType == TEXT("set_landscape_material") ||
+                     CommandType == TEXT("compile_material"))
+            {
+                ResultJson = MaterialGraphCommands->HandleCommand(CommandType, Params);
             }
             else
             {

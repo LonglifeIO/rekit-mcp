@@ -49,6 +49,9 @@ from helpers.bridge_aqueduct_creation import (
 )
 from helpers.outpost_creation import build_outpost_compound
 from helpers import hab_spawner
+from helpers import catalog_enricher
+from helpers import scene_scanner
+from helpers import layout_generator
 
 # ============================================================================
 # Blueprint Node Graph Tools
@@ -71,6 +74,11 @@ from helpers.pcg_graph import node_connector as pcg_node_connector
 from helpers.pcg_graph import node_properties as pcg_node_properties
 from helpers.pcg_graph import parameter_manager as pcg_parameter_manager
 from helpers.pcg_graph import spawner_entries as pcg_spawner_entries
+
+# ============================================================================
+# Material Graph Tools
+# ============================================================================
+from helpers import material_graph as mat_graph_helper
 
 
 # Configure logging with more detailed format
@@ -112,7 +120,15 @@ class UnrealConnection:
     LARGE_OP_RECV_TIMEOUT = 300  # seconds for large operations
     FRESH_CONNECTION_PER_COMMAND = True  # Reconnect before each command to avoid stale sockets
     BUFFER_SIZE = 8192
-    
+
+    # Game-thread idle check: ping UE5 before each command and wait if busy
+    IDLE_CHECK_ENABLED = True          # Toggle the pre-command ping check
+    IDLE_CHECK_THRESHOLD = 2.0         # If ping takes longer than this (seconds), game thread is busy
+    IDLE_CHECK_MAX_ATTEMPTS = 15       # Max ping attempts before giving up (~60s total with backoff)
+    IDLE_CHECK_BASE_DELAY = 1.0        # Initial delay between retries (seconds)
+    IDLE_CHECK_MAX_DELAY = 5.0         # Max delay between retries (seconds)
+    IDLE_CHECK_PING_TIMEOUT = 10       # Timeout for the ping recv itself (seconds)
+
     # Commands that need longer timeouts
     LARGE_OPERATION_COMMANDS = {
         "get_available_materials",
@@ -265,6 +281,97 @@ class UnrealConnection:
             return self.LARGE_OP_RECV_TIMEOUT
         return self.DEFAULT_RECV_TIMEOUT
 
+    def wait_for_game_thread_idle(self) -> bool:
+        """
+        Ping UE5 and wait until the game thread responds quickly.
+
+        When the game thread is blocked by heavy operations (multi-spawn,
+        shader compilation, etc.), even simple commands like ping queue
+        behind the blocking work and take minutes to respond.  This method
+        sends lightweight pings and only returns True once the response
+        time drops below IDLE_CHECK_THRESHOLD, indicating the game thread
+        is free to process the next real command.
+
+        Returns:
+            True if game thread is idle (ping responded fast).
+            False if still busy after IDLE_CHECK_MAX_ATTEMPTS (caller can
+                  proceed anyway — the real command will just queue).
+        """
+        if not self.IDLE_CHECK_ENABLED:
+            return True
+
+        for attempt in range(self.IDLE_CHECK_MAX_ATTEMPTS):
+            try:
+                # Open a fresh connection for the ping
+                ping_sock = self._create_socket()
+                ping_sock.settimeout(self.IDLE_CHECK_PING_TIMEOUT)
+                ping_sock.connect((UNREAL_HOST, UNREAL_PORT))
+
+                ping_json = json.dumps({"type": "ping", "params": {}}).encode("utf-8")
+                start = time.time()
+                ping_sock.sendall(ping_json)
+
+                # Read response (ping returns tiny JSON)
+                chunks = []
+                while True:
+                    chunk = ping_sock.recv(self.BUFFER_SIZE)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    # Try parsing to see if complete
+                    try:
+                        json.loads(b"".join(chunks).decode("utf-8"))
+                        break  # complete JSON received
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        continue
+
+                elapsed = time.time() - start
+                ping_sock.close()
+
+                if elapsed < self.IDLE_CHECK_THRESHOLD:
+                    if attempt > 0:
+                        logger.info(
+                            f"Game thread idle after {attempt + 1} ping(s) "
+                            f"(last ping: {elapsed:.2f}s)"
+                        )
+                    else:
+                        logger.debug(f"Game thread idle (ping: {elapsed:.2f}s)")
+                    return True
+                else:
+                    delay = min(
+                        self.IDLE_CHECK_BASE_DELAY * (1.5 ** attempt),
+                        self.IDLE_CHECK_MAX_DELAY,
+                    )
+                    logger.warning(
+                        f"Game thread busy — ping took {elapsed:.2f}s "
+                        f"(threshold {self.IDLE_CHECK_THRESHOLD}s). "
+                        f"Waiting {delay:.1f}s before retry "
+                        f"({attempt + 1}/{self.IDLE_CHECK_MAX_ATTEMPTS})..."
+                    )
+                    time.sleep(delay)
+
+            except (socket.timeout, ConnectionRefusedError, OSError) as e:
+                delay = min(
+                    self.IDLE_CHECK_BASE_DELAY * (1.5 ** attempt),
+                    self.IDLE_CHECK_MAX_DELAY,
+                )
+                logger.warning(
+                    f"Idle-check ping failed: {e}. "
+                    f"Retrying in {delay:.1f}s "
+                    f"({attempt + 1}/{self.IDLE_CHECK_MAX_ATTEMPTS})..."
+                )
+                try:
+                    ping_sock.close()
+                except:
+                    pass
+                time.sleep(delay)
+
+        logger.error(
+            f"Game thread still busy after {self.IDLE_CHECK_MAX_ATTEMPTS} "
+            f"ping attempts. Proceeding anyway — command may queue."
+        )
+        return False
+
     def _receive_response(self, command_type: str) -> bytes:
         """
         Receive complete JSON response from Unreal.
@@ -356,16 +463,21 @@ class UnrealConnection:
     def send_command(self, command: str, params: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
         """
         Send a command to Unreal Engine with automatic retry.
-        
+
         Args:
             command: Command type string
             params: Command parameters dictionary
-            
+
         Returns:
             Response dictionary or error dictionary
         """
+        # Wait for game thread to be idle before sending the real command.
+        # Skip for ping itself to avoid infinite recursion.
+        if command != "ping":
+            self.wait_for_game_thread_idle()
+
         last_error = None
-        
+
         for attempt in range(self.MAX_RETRIES + 1):
             try:
                 return self._send_command_once(command, params, attempt)
@@ -760,14 +872,23 @@ def snap_actors(
         return {"success": False, "message": "Failed to connect to Unreal Engine"}
 
     try:
-        # Get details for both actors
-        moving_details = unreal.send_command("get_actor_details", {"name": moving_actor})
-        if not moving_details or "error" in moving_details:
-            return {"success": False, "message": f"Failed to get details for moving actor '{moving_actor}': {moving_details}"}
+        def _unwrap_result(response: Any) -> Dict[str, Any]:
+            if isinstance(response, dict) and isinstance(response.get("result"), dict):
+                return response["result"]
+            if isinstance(response, dict):
+                return response
+            return {}
 
-        target_details = unreal.send_command("get_actor_details", {"name": target_actor})
-        if not target_details or "error" in target_details:
-            return {"success": False, "message": f"Failed to get details for target actor '{target_actor}': {target_details}"}
+        # Get details for both actors
+        moving_response = unreal.send_command("get_actor_details", {"name": moving_actor})
+        moving_details = _unwrap_result(moving_response)
+        if not moving_details or moving_response.get("error") or moving_details.get("error"):
+            return {"success": False, "message": f"Failed to get details for moving actor '{moving_actor}': {moving_response}"}
+
+        target_response = unreal.send_command("get_actor_details", {"name": target_actor})
+        target_details = _unwrap_result(target_response)
+        if not target_details or target_response.get("error") or target_details.get("error"):
+            return {"success": False, "message": f"Failed to get details for target actor '{target_actor}': {target_response}"}
 
         # Extract bounds
         t_origin = target_details.get("bounds_origin", [0, 0, 0])
@@ -830,6 +951,265 @@ def snap_actors(
 
     except Exception as e:
         logger.error(f"snap_actors error: {e}")
+        return {"success": False, "message": str(e)}
+
+@mcp.tool()
+def modular_cluster_snap(
+    anchor_actor: str = "",
+    center: Optional[List[float]] = None,
+    actor_names: Optional[List[str]] = None,
+    radius: float = 2000.0,
+    target_z: Optional[float] = None,
+    grid_size: float = 500.0,
+    grid_yaw: Optional[float] = None,
+    mesh_path_filter: str = "/Game/ModularSciFi/",
+    snap_xy: bool = True,
+    dry_run: bool = False
+) -> Dict[str, Any]:
+    """Snap a modular actor cluster to a shared grid and align all pieces to one Z height.
+
+    This is useful for kitbashing modular sets where pieces are very close but
+    slightly off in placement. The tool can either use an explicit actor list
+    or auto-discover nearby StaticMeshActors around an anchor.
+
+    Args:
+        anchor_actor: Actor used as the snap origin. Optional if center is provided.
+        center: Optional world-space center [X, Y, Z] for cluster discovery.
+        actor_names: Optional explicit actor names to process (bypasses radius search).
+        radius: XY search radius (cm) when actor_names is not provided.
+        target_z: Final Z for all actors. Defaults to anchor/center Z when omitted.
+        grid_size: Grid step (cm) used for XY snapping in the cluster local frame.
+        grid_yaw: Optional grid orientation in degrees. Auto-derived if omitted.
+        mesh_path_filter: Only include meshes whose asset path contains this text.
+        snap_xy: If False, only Z alignment is applied.
+        dry_run: If True, compute and return planned moves without applying transforms.
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    def _unwrap_result(response: Any) -> Dict[str, Any]:
+        if isinstance(response, dict) and isinstance(response.get("result"), dict):
+            return response["result"]
+        if isinstance(response, dict):
+            return response
+        return {}
+
+    def _is_error_response(response: Any) -> bool:
+        payload = _unwrap_result(response)
+        return (
+            not isinstance(response, dict)
+            or bool(response.get("error"))
+            or bool(payload.get("error"))
+        )
+
+    def _normalize_angle_0_90(angle_degrees: float) -> float:
+        a = angle_degrees % 90.0
+        if a < 0.0:
+            a += 90.0
+        return a
+
+    def _infer_grid_yaw(details_list: List[Dict[str, Any]]) -> float:
+        # Estimate dominant modular axis orientation using 90-degree periodicity.
+        sin_sum = 0.0
+        cos_sum = 0.0
+        sample_count = 0
+        for details in details_list:
+            rotation = details.get("rotation", [0.0, 0.0, 0.0])
+            if not isinstance(rotation, list) or len(rotation) < 2:
+                continue
+            yaw = float(rotation[1])
+            angle = math.radians(yaw * 4.0)  # 90deg periodic orientation
+            sin_sum += math.sin(angle)
+            cos_sum += math.cos(angle)
+            sample_count += 1
+
+        if sample_count == 0 or (abs(sin_sum) < 1e-6 and abs(cos_sum) < 1e-6):
+            return 0.0
+
+        dominant = math.degrees(math.atan2(sin_sum, cos_sum)) / 4.0
+        return _normalize_angle_0_90(dominant)
+
+    def _get_actor_details(name: str) -> Optional[Dict[str, Any]]:
+        response = unreal.send_command("get_actor_details", {"name": name})
+        if _is_error_response(response):
+            return None
+        payload = _unwrap_result(response)
+        if "name" not in payload:
+            return None
+        return payload
+
+    try:
+        selected_names: List[str] = []
+        if actor_names:
+            selected_names = list(dict.fromkeys([n for n in actor_names if n]))
+
+        anchor_loc: Optional[List[float]] = None
+        if anchor_actor:
+            anchor_details = _get_actor_details(anchor_actor)
+            if not anchor_details:
+                return {"success": False, "message": f"Failed to resolve anchor_actor '{anchor_actor}'"}
+            anchor_loc = anchor_details.get("location", [0.0, 0.0, 0.0])
+
+        if anchor_loc is None and center is not None and len(center) == 3:
+            anchor_loc = [float(center[0]), float(center[1]), float(center[2])]
+
+        details_by_name: Dict[str, Dict[str, Any]] = {}
+        skipped_by_filter: List[str] = []
+
+        if selected_names:
+            for name in selected_names:
+                details = _get_actor_details(name)
+                if not details:
+                    continue
+                mesh_path = str(details.get("static_mesh_path", ""))
+                if mesh_path_filter and mesh_path_filter.lower() not in mesh_path.lower():
+                    skipped_by_filter.append(name)
+                    continue
+                details_by_name[name] = details
+        else:
+            if anchor_loc is None:
+                return {
+                    "success": False,
+                    "message": "Provide actor_names, or set anchor_actor/center for radius-based discovery."
+                }
+
+            actors_response = unreal.send_command("get_actors_in_level", {})
+            if _is_error_response(actors_response):
+                return {"success": False, "message": f"Failed to list actors: {actors_response}"}
+
+            actors_payload = _unwrap_result(actors_response)
+            actors = actors_payload.get("actors", [])
+            if not isinstance(actors, list):
+                return {"success": False, "message": "Unexpected get_actors_in_level response shape."}
+
+            radius_sq = float(radius) * float(radius)
+            for actor in actors:
+                if not isinstance(actor, dict):
+                    continue
+                if actor.get("class") != "StaticMeshActor":
+                    continue
+                loc = actor.get("location", [])
+                if not isinstance(loc, list) or len(loc) < 3:
+                    continue
+                dx = float(loc[0]) - float(anchor_loc[0])
+                dy = float(loc[1]) - float(anchor_loc[1])
+                if (dx * dx + dy * dy) > radius_sq:
+                    continue
+
+                name = actor.get("name")
+                if not name:
+                    continue
+
+                details = _get_actor_details(name)
+                if not details:
+                    continue
+
+                mesh_path = str(details.get("static_mesh_path", ""))
+                if mesh_path_filter and mesh_path_filter.lower() not in mesh_path.lower():
+                    skipped_by_filter.append(name)
+                    continue
+
+                details_by_name[name] = details
+
+        if not details_by_name:
+            return {
+                "success": False,
+                "message": "No actors selected for modular cluster snap after filtering.",
+                "skipped_by_filter": skipped_by_filter
+            }
+
+        if anchor_loc is None:
+            first_name = next(iter(details_by_name))
+            anchor_loc = list(details_by_name[first_name].get("location", [0.0, 0.0, 0.0]))
+
+        if target_z is None:
+            target_z = float(anchor_loc[2])
+
+        if grid_size <= 0.0:
+            snap_xy = False
+
+        details_list = list(details_by_name.values())
+        resolved_grid_yaw = float(grid_yaw) if grid_yaw is not None else _infer_grid_yaw(details_list)
+        yaw_radians = math.radians(resolved_grid_yaw)
+        cos_yaw = math.cos(yaw_radians)
+        sin_yaw = math.sin(yaw_radians)
+
+        changed: List[Dict[str, Any]] = []
+        failed: List[Dict[str, Any]] = []
+        unchanged_count = 0
+
+        for name in sorted(details_by_name.keys()):
+            details = details_by_name[name]
+            loc = details.get("location", [0.0, 0.0, 0.0])
+            if not isinstance(loc, list) or len(loc) < 3:
+                failed.append({"name": name, "reason": "missing_location"})
+                continue
+
+            old_loc = [float(loc[0]), float(loc[1]), float(loc[2])]
+            new_loc = [old_loc[0], old_loc[1], float(target_z)]
+
+            if snap_xy:
+                rel_x = old_loc[0] - float(anchor_loc[0])
+                rel_y = old_loc[1] - float(anchor_loc[1])
+
+                # Convert world XY to local grid frame.
+                local_u = rel_x * cos_yaw + rel_y * sin_yaw
+                local_v = -rel_x * sin_yaw + rel_y * cos_yaw
+
+                snapped_u = round(local_u / grid_size) * grid_size
+                snapped_v = round(local_v / grid_size) * grid_size
+
+                # Convert snapped local coordinates back to world XY.
+                new_rel_x = snapped_u * cos_yaw - snapped_v * sin_yaw
+                new_rel_y = snapped_u * sin_yaw + snapped_v * cos_yaw
+                new_loc[0] = float(anchor_loc[0]) + new_rel_x
+                new_loc[1] = float(anchor_loc[1]) + new_rel_y
+
+            delta = [new_loc[0] - old_loc[0], new_loc[1] - old_loc[1], new_loc[2] - old_loc[2]]
+            moved = abs(delta[0]) > 0.001 or abs(delta[1]) > 0.001 or abs(delta[2]) > 0.001
+
+            if not moved:
+                unchanged_count += 1
+                continue
+
+            if not dry_run:
+                set_response = unreal.send_command("set_actor_transform", {"name": name, "location": new_loc})
+                if _is_error_response(set_response):
+                    failed.append({"name": name, "reason": "set_actor_transform_failed", "response": set_response})
+                    continue
+
+            changed.append(
+                {
+                    "name": name,
+                    "old_location": old_loc,
+                    "new_location": new_loc,
+                    "delta": delta
+                }
+            )
+
+        success = len(failed) == 0
+
+        return {
+            "success": success,
+            "dry_run": dry_run,
+            "selected_count": len(details_by_name),
+            "changed_count": len(changed),
+            "unchanged_count": unchanged_count,
+            "failed_count": len(failed),
+            "anchor_location": anchor_loc,
+            "target_z": target_z,
+            "grid": {
+                "snap_xy": snap_xy,
+                "grid_size": grid_size,
+                "grid_yaw": resolved_grid_yaw
+            },
+            "changed_actors": changed,
+            "failed_actors": failed,
+            "skipped_by_filter": skipped_by_filter
+        }
+    except Exception as e:
+        logger.error(f"modular_cluster_snap error: {e}")
         return {"success": False, "message": str(e)}
 
 @mcp.tool()
@@ -4033,6 +4413,759 @@ def get_mesh_categories(
         "categories": data.get("category_counts", {}),
         "descriptions": data.get("category_descriptions", {}),
     }
+
+
+# ============================================================================
+# Catalog Enrichment Tools (Phase A — Kit-Bashing Pipeline)
+# ============================================================================
+
+@mcp.tool()
+def enrich_catalog_bounds(
+    catalog: str = "modularscifi_meshes",
+    category: str = "",
+    dry_run: bool = False
+) -> Dict[str, Any]:
+    """
+    Measure bounding box dimensions for catalog meshes that have null size_cm.
+
+    For each unmeasured mesh: spawns it at world origin, queries get_actor_details
+    for its bounding box, then deletes it. Writes measured bounds_extent, size_cm,
+    and pivot_offset_cm back to the catalog JSON.
+
+    This is a slow operation — each mesh takes ~0.5s (spawn + measure + delete).
+    For 320 meshes, expect ~3 minutes. Use category filter to measure in batches.
+
+    Args:
+        catalog: Catalog file name (default: modularscifi_meshes).
+        category: Only measure meshes in this category (e.g. "modular_building").
+            Empty string measures all categories.
+        dry_run: If True, reports what would be measured without spawning anything.
+
+    Returns:
+        Dictionary with measured_count, skipped_count (already had bounds), and errors.
+    """
+    unreal = get_unreal_connection()
+    if not unreal and not dry_run:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        return catalog_enricher.measure_catalog_bounds(
+            unreal_connection=unreal,
+            catalog_name=catalog,
+            category=category,
+            dry_run=dry_run,
+        )
+    except Exception as e:
+        logger.error(f"enrich_catalog_bounds error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def add_catalog_semantics(
+    mesh_name: str,
+    catalog: str = "modularscifi_meshes",
+    display_name: str = "",
+    description: str = "",
+    function: str = "",
+    style_tags: List[str] = [],
+    spawn_weight: float = -1
+) -> Dict[str, Any]:
+    """
+    Add or update semantic metadata for a single mesh in the catalog.
+
+    This enriches the catalog with human-readable information that AI layout
+    tools need: what the piece looks like, what role it plays, and style tags
+    for matching to concept art or text descriptions.
+
+    Only updates fields that are provided (non-empty / non-default).
+    Call multiple times to incrementally annotate the catalog.
+
+    Args:
+        mesh_name: Mesh name to update. Fuzzy matched — e.g. "Wall_1" matches
+            "SM_Modular_Wall_1_Merged". Exact match tried first.
+        catalog: Catalog file name (default: modularscifi_meshes).
+        display_name: Human-readable short name (e.g. "Standard Wall").
+        description: What the piece looks like (e.g. "Ribbed metal wall with conduit runs").
+        function: What role it plays in a layout (e.g. "Enclosure wall for rooms and corridors").
+        style_tags: Visual style tags (e.g. ["industrial", "panelled"]).
+        spawn_weight: How commonly this piece should appear in generated layouts (0.0-1.0).
+            -1 means don't change the current value.
+
+    Returns:
+        Dictionary with updated mesh name and the new semantics sub-object.
+    """
+    try:
+        return catalog_enricher.add_semantics(
+            catalog_name=catalog,
+            mesh_name=mesh_name,
+            display_name=display_name,
+            description=description,
+            function=function,
+            style_tags=style_tags if style_tags else None,
+            spawn_weight=spawn_weight,
+        )
+    except Exception as e:
+        logger.error(f"add_catalog_semantics error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def query_catalog(
+    query: str = "",
+    category: str = "",
+    tags: List[str] = [],
+    min_size_cm: List[float] = None,
+    max_size_cm: List[float] = None,
+    has_bounds: bool = False,
+    catalog: str = "modularscifi_meshes",
+    limit: int = 20
+) -> Dict[str, Any]:
+    """
+    Enhanced mesh catalog search with multi-criteria filtering.
+
+    More powerful than search_mesh_catalog — supports text search across names
+    AND semantic descriptions, tag filtering, size range filtering, and
+    bounds availability filtering.
+
+    Text query matches against: mesh name, display_name, description, and function.
+
+    Args:
+        query: Text search string (case-insensitive). Matches name, display_name,
+            description, and function fields. Empty returns all (filtered by other criteria).
+        category: Filter by category (e.g. "modular_building", "prop", "terrain").
+        tags: Require ALL of these tags. Checks both catalog tags and style_tags.
+        min_size_cm: [x, y, z] minimum size filter. Only meshes with measured bounds
+            that are >= these values in all dimensions.
+        max_size_cm: [x, y, z] maximum size filter.
+        has_bounds: If True, only return meshes that have measured bounds.
+        catalog: Catalog file name (default: modularscifi_meshes).
+        limit: Maximum results to return (default 20).
+
+    Returns:
+        Dictionary with result_count and matching meshes with full metadata.
+    """
+    try:
+        return catalog_enricher.query_meshes(
+            catalog_name=catalog,
+            query=query,
+            category=category,
+            tags=tags if tags else None,
+            min_size_cm=min_size_cm,
+            max_size_cm=max_size_cm,
+            has_bounds=has_bounds,
+            limit=limit,
+        )
+    except Exception as e:
+        logger.error(f"query_catalog error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+# ============================================================================
+# Phase B — Scene Scanner Tools
+# ============================================================================
+
+@mcp.tool()
+def scan_scene_grid(
+    name_filter: str = "",
+    category_filter: str = "modular_building",
+    catalog: str = "modularscifi_meshes",
+    max_actors: int = 500
+) -> Dict[str, Any]:
+    """
+    Scan the current level for structural kit pieces and detect grid alignment.
+
+    Queries all actors, filters to catalog-matched structural pieces, detects
+    the grid cell size via GCD of floor-piece position deltas, snaps positions
+    to grid, and quantizes rotations to nearest 90 degrees.
+
+    This is the foundation for build_adjacency_graph, extract_archetypes, and
+    extract_sockets. Results are cached for 30 seconds across tool calls.
+
+    Args:
+        name_filter: Only scan actors whose name contains this string (case-insensitive).
+            Use to target specific spawned groups, e.g. "Hab_" or "Test_PhaseA".
+            Empty string scans all actors (slower).
+        category_filter: Only include meshes from this catalog category
+            (default: "modular_building" for structural kit pieces).
+        catalog: Catalog file name (default: modularscifi_meshes).
+        max_actors: Maximum actors to query details for (performance cap).
+
+    Returns:
+        Dictionary with grid_size_cm, structural_count, and grid_positions list.
+        Each grid_position has: id, name, mesh_name, piece_type, grid_x/y/z, rotation_deg.
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        return scene_scanner.scan_scene_grid(
+            unreal_connection=unreal,
+            catalog_name=catalog,
+            category_filter=category_filter,
+            name_filter=name_filter,
+            max_actors=max_actors,
+        )
+    except Exception as e:
+        logger.error(f"scan_scene_grid error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def build_adjacency_graph(
+    name_filter: str = "",
+    category_filter: str = "modular_building",
+    max_neighbor_distance: float = 1.5,
+    catalog: str = "modularscifi_meshes"
+) -> Dict[str, Any]:
+    """
+    Build an adjacency graph from structural pieces in the current level.
+
+    Scans the scene grid (or reuses 30s cache), then for each pair of pieces
+    within max_neighbor_distance grid cells, creates an edge with direction
+    (+x, -x, +y, -y, same_cell) and connection type metadata.
+
+    Use this to understand how pieces connect in an existing scene before
+    extracting archetypes or sockets.
+
+    Args:
+        name_filter: Only include actors whose name contains this string.
+        category_filter: Only include meshes from this catalog category.
+        max_neighbor_distance: Max Chebyshev distance in grid cells for adjacency
+            (default 1.5 = immediate neighbors including diagonal).
+        catalog: Catalog file name.
+
+    Returns:
+        Dictionary with node_count, edge_count, nodes list, edges list, grid_size_cm.
+        Each edge has: from_id, to_id, from_type, to_type, direction, same_cell.
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        return scene_scanner.build_adjacency_graph(
+            unreal_connection=unreal,
+            catalog_name=catalog,
+            category_filter=category_filter,
+            name_filter=name_filter,
+            max_neighbor_distance=max_neighbor_distance,
+        )
+    except Exception as e:
+        logger.error(f"build_adjacency_graph error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def extract_archetypes(
+    name_filter: str = "",
+    category_filter: str = "modular_building",
+    min_pieces: int = 3,
+    save_to: str = "",
+    catalog: str = "modularscifi_meshes"
+) -> Dict[str, Any]:
+    """
+    Extract room/corridor archetype templates from the current level.
+
+    Builds adjacency graph, clusters via connected components, classifies each
+    cluster by shape (room_2x1, corridor, l_shape, etc.), and normalizes piece
+    positions relative to the cluster centroid.
+
+    Classification rules:
+    - corridor: aspect ratio > 3:1, width <= 2 cells
+    - room_NxM: rectangular with > 75% fill ratio
+    - l_shape: 5+ floor cells with < 75% bounding-box fill
+    - cell_1x1: single floor cell
+
+    Args:
+        name_filter: Only include actors whose name contains this string.
+        category_filter: Only include meshes from this catalog category.
+        min_pieces: Minimum pieces for a cluster to be reported (default 3).
+        save_to: Save archetypes to this filename in catalogs/ (e.g. "modularscifi_archetypes").
+            Empty string = don't save.
+        catalog: Catalog file name.
+
+    Returns:
+        Dictionary with archetype_count and archetypes list.
+        Each archetype has: id, classification, piece_count, grid_bounds,
+        floor/wall/door/window counts, aspect_ratio, pieces_relative.
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        return scene_scanner.extract_archetypes(
+            unreal_connection=unreal,
+            catalog_name=catalog,
+            category_filter=category_filter,
+            name_filter=name_filter,
+            min_pieces=min_pieces,
+            save_to=save_to,
+        )
+    except Exception as e:
+        logger.error(f"extract_archetypes error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def extract_sockets(
+    name_filter: str = "",
+    category_filter: str = "modular_building",
+    save_to_catalog: bool = True,
+    catalog: str = "modularscifi_meshes"
+) -> Dict[str, Any]:
+    """
+    Infer socket types from observed adjacency patterns in the current scene.
+
+    For each edge in the adjacency graph, records which piece types connect
+    and whether they share a cell or are neighbors. Groups patterns into
+    named socket types like:
+    - floor_wall_base (wall sitting on same cell as floor)
+    - wall_continuation (wall adjacent to wall)
+    - floor_continuation (floor-to-floor neighbor)
+    - floor_door_base (door on same cell as floor)
+
+    When save_to_catalog is True, writes socket arrays back to each mesh entry
+    in the catalog JSON AND saves a standalone sockets file.
+
+    Args:
+        name_filter: Only include actors whose name contains this string.
+        category_filter: Only include meshes from this catalog category.
+        save_to_catalog: Write sockets to catalog JSON and standalone file (default True).
+        catalog: Catalog file name.
+
+    Returns:
+        Dictionary with mesh_count, total_sockets, socket_types list, per_mesh details.
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        return scene_scanner.extract_sockets(
+            unreal_connection=unreal,
+            catalog_name=catalog,
+            category_filter=category_filter,
+            name_filter=name_filter,
+            save_to_catalog=save_to_catalog,
+        )
+    except Exception as e:
+        logger.error(f"extract_sockets error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+# Phase C — Layout Generation Tools
+# ============================================================================
+
+@mcp.tool()
+def generate_layout_prompt(
+    description: str,
+    catalog: str = "modularscifi_meshes",
+    max_grid_x: int = 10,
+    max_grid_y: int = 10,
+    style_tags: str = "",
+    num_examples: int = 2,
+    archetype_catalog: str = "modularscifi_archetypes",
+) -> dict:
+    """
+    Construct an optimized prompt for generating a modular level layout.
+
+    Builds a detailed prompt containing piece definitions, placement rules,
+    few-shot examples from extracted archetypes, and the user's description.
+    The returned prompt is designed for Claude to process and output a valid
+    layout JSON that can be validated with validate_layout and spawned with
+    spawn_hab.
+
+    This tool does NOT call an external LLM. It returns the prompt string
+    for the AI assistant to process directly.
+
+    Args:
+        description: Natural language description of the desired layout.
+            Example: "A 3x2 rectangular hab with doors on the south side
+            and windows on the north side"
+        catalog: Catalog file name (default: modularscifi_meshes).
+        max_grid_x: Maximum grid width in cells (default: 10).
+        max_grid_y: Maximum grid height in cells (default: 10).
+        style_tags: Comma-separated tags to match archetype examples (e.g. "corridor,skylight").
+        num_examples: Number of few-shot examples to include (default: 2).
+        archetype_catalog: Archetype file for examples (default: modularscifi_archetypes).
+
+    Returns:
+        Dictionary with prompt string, pieces_included count, examples_included count.
+    """
+    try:
+        tags = [t.strip() for t in style_tags.split(",") if t.strip()] if style_tags else []
+        return layout_generator.generate_layout_prompt(
+            description=description,
+            catalog_name=catalog,
+            max_grid=[max_grid_x, max_grid_y],
+            style_tags=tags,
+            num_examples=num_examples,
+            archetype_catalog=archetype_catalog,
+        )
+    except Exception as e:
+        logger.error(f"generate_layout_prompt error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def validate_layout(
+    layout: dict,
+    catalog: str = "modularscifi_meshes",
+) -> dict:
+    """
+    Validate a layout JSON against modular kit placement rules.
+
+    Checks the layout for:
+    - All mesh names resolve to catalog entries
+    - All positions aligned to the grid (multiples of cell_size)
+    - All rotations in the valid set (0, 90, -90, 180)
+    - No duplicate pieces at the same position and type
+    - Floor coverage: every wall/door/window has a floor in its cell
+    - Roof coverage: every floor has a roof or skylight above it
+    - mesh_paths completeness: every mesh used has a path entry
+
+    Use this to validate layouts generated by the AI before spawning.
+
+    Args:
+        layout: Layout JSON dict in hab variation format. Must contain:
+            - cell_size_cm (int, typically 500)
+            - pieces (list of {index, type, mesh, rel, yaw, label})
+            - mesh_paths (dict of mesh_name -> asset_path)
+        catalog: Catalog file name for mesh validation.
+
+    Returns:
+        Dictionary with valid (bool), violation_count, violations list,
+        and stats (piece type counts).
+    """
+    try:
+        return layout_generator.validate_layout(
+            layout=layout,
+            catalog_name=catalog,
+        )
+    except Exception as e:
+        logger.error(f"validate_layout error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+# ============================================================================
+# Material Graph Tools
+# ============================================================================
+
+@mcp.tool()
+def create_material(
+    material_name: str,
+    path: str = "/Game/Materials",
+    two_sided: bool = False
+) -> Dict[str, Any]:
+    """
+    Create a new material asset in the Content Browser.
+
+    Args:
+        material_name: Name for the new material (e.g., "M_LandscapeSnow")
+        path: Content path where the material will be created (default: "/Game/Materials")
+        two_sided: Whether the material should render on both sides (default: false)
+
+    Returns:
+        Dictionary with material_path, material_name, already_existed, success
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = mat_graph_helper.create_material(unreal, material_name, path, two_sided)
+        return result
+    except Exception as e:
+        logger.error(f"create_material error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def add_material_expression(
+    material_path: str,
+    expression_class: str,
+    node_name: str = "",
+    pos_x: int = 0,
+    pos_y: int = 0
+) -> Dict[str, Any]:
+    """
+    Add a material expression node to a material graph.
+
+    Supported expression_class values:
+    TextureSample, TextureSampleParameter2D, WorldPosition, Lerp (LinearInterpolate),
+    ComponentMask, Divide, Subtract, Clamp, Constant, TextureCoordinate (TexCoord),
+    Multiply, Add, AppendVector, Constant2Vector, Constant3Vector, Constant4Vector,
+    ScalarParameter, VectorParameter, TextureObjectParameter
+
+    Args:
+        material_path: Content path to the material (e.g., "/Game/Materials/M_Snow")
+        expression_class: Type of expression to add
+        node_name: Friendly name for referencing this node in later commands
+        pos_x: X position in graph editor
+        pos_y: Y position in graph editor
+
+    Returns:
+        Dictionary with expression_name, expression_class, expression_index, success
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = mat_graph_helper.add_material_expression(unreal, material_path, expression_class, node_name, pos_x, pos_y)
+        return result
+    except Exception as e:
+        logger.error(f"add_material_expression error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def set_material_expression_param(
+    material_path: str,
+    expression_name: str,
+    param_name: str,
+    param_value: Any
+) -> Dict[str, Any]:
+    """
+    Set a parameter on a material expression node.
+
+    Common param_name values by expression type:
+    - TextureSample: "Texture" (path), "SamplerType" ("Normal", "LinearColor", "Color", "Masks")
+    - TextureCoordinate: "UTiling" (float), "VTiling" (float)
+    - Constant: "R" or "Value" (float)
+    - ScalarParameter: "ParameterName" (string), "Value" (float)
+    - ComponentMask: "R_mask" (bool), "G_mask" (bool), "B_mask" (bool), "A_mask" (bool)
+    - Clamp: "MinDefault" (float), "MaxDefault" (float)
+    - Divide/Subtract/Multiply/Add: "ConstA" (float), "ConstB" (float)
+
+    Args:
+        material_path: Content path to the material
+        expression_name: Name/identifier of the expression (node_name or FName)
+        param_name: Parameter to set
+        param_value: Value to set (type depends on parameter)
+
+    Returns:
+        Dictionary with success status
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = mat_graph_helper.set_material_expression_param(unreal, material_path, expression_name, param_name, param_value)
+        return result
+    except Exception as e:
+        logger.error(f"set_material_expression_param error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def connect_material_expressions(
+    material_path: str,
+    from_expression: str,
+    to_expression: str,
+    from_output_index: int = 0,
+    to_input_index: int = 0
+) -> Dict[str, Any]:
+    """
+    Connect two material expressions in a material graph.
+
+    Common output indices: 0=default/RGB, 1=R, 2=G, 3=B, 4=A (for texture samples)
+    Common input indices vary by expression type:
+    - Lerp: 0=A, 1=B, 2=Alpha
+    - Multiply/Divide/Add/Subtract: 0=A, 1=B
+    - ComponentMask: 0=Input
+    - Clamp: 0=Input, 1=Min, 2=Max
+
+    Args:
+        material_path: Content path to the material
+        from_expression: Source expression name (node_name or FName)
+        to_expression: Target expression name
+        from_output_index: Output pin index on source (default: 0)
+        to_input_index: Input pin index on target (default: 0)
+
+    Returns:
+        Dictionary with success status
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = mat_graph_helper.connect_material_expressions(
+            unreal, material_path, from_expression, to_expression,
+            from_output_index, to_input_index
+        )
+        return result
+    except Exception as e:
+        logger.error(f"connect_material_expressions error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def connect_material_to_output(
+    material_path: str,
+    expression_name: str,
+    material_property: str,
+    output_index: int = 0
+) -> Dict[str, Any]:
+    """
+    Connect a material expression to a material output property (the main material node).
+
+    Args:
+        material_path: Content path to the material
+        expression_name: Name of the expression to connect
+        material_property: Target output property. Supported values:
+            BaseColor, Normal, Roughness, Metallic, AmbientOcclusion (AO),
+            EmissiveColor (Emissive), Specular, Opacity, OpacityMask,
+            WorldPositionOffset
+        output_index: Which output pin of the expression to use (default: 0)
+
+    Returns:
+        Dictionary with success status
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = mat_graph_helper.connect_material_to_output(
+            unreal, material_path, expression_name, material_property, output_index
+        )
+        return result
+    except Exception as e:
+        logger.error(f"connect_material_to_output error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def set_landscape_material(
+    actor_name: str,
+    material_path: str
+) -> Dict[str, Any]:
+    """
+    Assign a material to a landscape actor. Sets the LandscapeMaterial property
+    and updates all component material instances.
+
+    Args:
+        actor_name: Name of the landscape actor (e.g., "Landscape7")
+        material_path: Content path to the material to assign
+
+    Returns:
+        Dictionary with success status
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = mat_graph_helper.set_landscape_material(unreal, actor_name, material_path)
+        return result
+    except Exception as e:
+        logger.error(f"set_landscape_material error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def compile_material(
+    material_path: str
+) -> Dict[str, Any]:
+    """
+    Recompile and save a material. Call this after making changes to a material
+    graph to apply all expression connections and parameter changes.
+
+    Args:
+        material_path: Content path to the material
+
+    Returns:
+        Dictionary with success status and message
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = mat_graph_helper.compile_material(unreal, material_path)
+        return result
+    except Exception as e:
+        logger.error(f"compile_material error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+@mcp.tool()
+def create_landscape_height_material(
+    material_name: str,
+    material_path: str = "/Game/Materials",
+    low_diffuse: str = "",
+    low_normal: str = "",
+    low_orm: str = "",
+    high_diffuse: str = "",
+    high_normal: str = "",
+    high_orm: str = "",
+    blend_start: float = 5000.0,
+    blend_range: float = 2000.0,
+    tiling: float = 4.0,
+    landscape_actor: str = ""
+) -> Dict[str, Any]:
+    """
+    Build a complete WorldPosition.Z height-blended landscape material.
+
+    Creates a material with two texture layers (low/high elevation) that automatically
+    blend based on world Z height. Perfect for snow/ice landscapes where high elevations
+    get snow and low elevations show rock/ice.
+
+    The material graph creates:
+    - 6 TextureSample nodes (diffuse/normal/ORM for each layer)
+    - WorldPosition -> ComponentMask(Z) -> Subtract -> Divide -> Clamp alpha chain
+    - 3 Lerp nodes blending between low and high layers
+    - Outputs wired to BaseColor, Normal, Roughness, Metallic, AO
+
+    ORM textures follow Megascans packing: R=AO, G=Roughness, B=Metallic.
+
+    Args:
+        material_name: Name for the material (e.g., "M_Europa_HeightBlend")
+        material_path: Content folder path (default: "/Game/Materials")
+        low_diffuse: Texture path for low-elevation diffuse/albedo
+        low_normal: Texture path for low-elevation normal map
+        low_orm: Texture path for low-elevation ORM packed texture
+        high_diffuse: Texture path for high-elevation diffuse/albedo
+        high_normal: Texture path for high-elevation normal map
+        high_orm: Texture path for high-elevation ORM packed texture
+        blend_start: World Z height (cm) where blending begins (default: 5000)
+        blend_range: Height range (cm) over which the blend transitions (default: 2000)
+        tiling: UV tiling scale for all textures (default: 4.0)
+        landscape_actor: If provided, auto-assigns the material to this landscape actor
+
+    Returns:
+        Dictionary with material_path, operations_completed count, success,
+        and optionally landscape_actor if assigned
+    """
+    unreal = get_unreal_connection()
+    if not unreal:
+        return {"success": False, "message": "Failed to connect to Unreal Engine"}
+
+    try:
+        result = mat_graph_helper.create_landscape_height_material(
+            unreal,
+            material_name=material_name,
+            material_path=material_path,
+            low_diffuse=low_diffuse,
+            low_normal=low_normal,
+            low_orm=low_orm,
+            high_diffuse=high_diffuse,
+            high_normal=high_normal,
+            high_orm=high_orm,
+            blend_start=blend_start,
+            blend_range=blend_range,
+            tiling=tiling,
+            landscape_actor=landscape_actor
+        )
+        return result
+    except Exception as e:
+        logger.error(f"create_landscape_height_material error: {e}")
+        return {"success": False, "message": str(e)}
 
 
 # Run the server

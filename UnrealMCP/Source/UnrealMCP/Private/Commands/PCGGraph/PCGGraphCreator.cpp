@@ -248,12 +248,12 @@ TSharedPtr<FJsonObject> FPCGGraphCreator::ReadPCGGraph(const TSharedPtr<FJsonObj
             {
                 if (!Edge) continue;
                 const UPCGPin* OtherPin = Edge->GetOtherPin(OutputPin);
-                if (!OtherPin || !OtherPin->GetOwner()) continue;
+                if (!OtherPin || !OtherPin->Node) continue;
 
                 TSharedPtr<FJsonObject> ConnObj = MakeShareable(new FJsonObject);
                 ConnObj->SetStringField(TEXT("from_node_id"), Node->GetFName().ToString());
                 ConnObj->SetStringField(TEXT("from_pin"), OutputPin->Properties.Label.ToString());
-                ConnObj->SetStringField(TEXT("to_node_id"), OtherPin->GetOwner()->GetFName().ToString());
+                ConnObj->SetStringField(TEXT("to_node_id"), OtherPin->Node->GetFName().ToString());
                 ConnObj->SetStringField(TEXT("to_pin"), OtherPin->Properties.Label.ToString());
                 ConnectionsArray.Add(MakeShareable(new FJsonValueObject(ConnObj)));
             }

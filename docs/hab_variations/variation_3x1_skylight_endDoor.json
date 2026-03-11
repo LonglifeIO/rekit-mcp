@@ -1,0 +1,56 @@
+{
+  "name": "3x1_Skylight_EndDoor_V1",
+  "description": "3x1 rectangular hab with 2-cell skylight (east+mid cells), solid roof over door end (west cell). 3 windows on north wall, solid south walls, solid east end wall, door on west end. 18 pieces total.",
+  "grid_rotation_deg": 0,
+  "cell_size_cm": 500,
+  "origin_world": {"x": 0, "y": 0, "z": 0},
+  "cells": [
+    {"grid": [0, 0], "label": "east"},
+    {"grid": [-1, 0], "label": "mid"},
+    {"grid": [-2, 0], "label": "west"}
+  ],
+  "pieces": [
+    {"index": 1,  "type": "floor",    "mesh": "SM_Modular_Merged",                "rel": [0, 0, 0],       "yaw": 0,    "label": "East floor"},
+    {"index": 2,  "type": "floor",    "mesh": "SM_Modular_Merged",                "rel": [-500, 0, 0],    "yaw": 0,    "label": "Mid floor"},
+    {"index": 3,  "type": "floor",    "mesh": "SM_Modular_Merged",                "rel": [-1000, 0, 0],   "yaw": 0,    "label": "West floor"},
+
+    {"index": 4,  "type": "wall",     "mesh": "SM_Modular_Wall_1_Merged",         "rel": [0, 0, 0],       "yaw": -90,  "label": "South wall (east cell)"},
+    {"index": 5,  "type": "wall",     "mesh": "SM_Modular_Wall_1_Merged",         "rel": [-500, 0, 0],    "yaw": -90,  "label": "South wall (mid cell)"},
+    {"index": 6,  "type": "wall",     "mesh": "SM_Modular_Wall_1_Merged",         "rel": [-1000, 0, 0],   "yaw": -90,  "label": "South wall (west cell)"},
+
+    {"index": 7,  "type": "window",   "mesh": "SM_Modular_WallWindow_3_Merged",   "rel": [-500, 500, 0],  "yaw": 90,   "label": "North window (east cell)"},
+    {"index": 8,  "type": "window",   "mesh": "SM_WallWindow_1_Merged",           "rel": [-1000, 500, 0], "yaw": 90,   "label": "North window (mid cell)"},
+    {"index": 9,  "type": "wall",     "mesh": "SM_Modular_Wall_1_Merged",         "rel": [-1500, 500, 0], "yaw": 90,   "label": "North wall (west cell)"},
+
+    {"index": 10, "type": "wall",     "mesh": "SM_Modular_Wall_1_Merged",         "rel": [0, 500, 0],     "yaw": 0,    "label": "East wall"},
+    {"index": 11, "type": "door",     "mesh": "SM_Modular_DoorModule_Merged",     "rel": [-1500, 0, 0],   "yaw": 180,  "label": "West door (end entry)"},
+
+    {"index": 12, "type": "corner",   "mesh": "SM_Modular_Corner_Merged",         "rel": [0, 0, 0],       "yaw": -90,  "label": "SE corner"},
+    {"index": 13, "type": "corner",   "mesh": "SM_Modular_Corner_Merged",         "rel": [0, 500, 0],     "yaw": 0,    "label": "NE corner"},
+    {"index": 14, "type": "corner",   "mesh": "SM_Modular_Corner_Merged",         "rel": [-1500, 500, 0], "yaw": 90,   "label": "NW corner"},
+    {"index": 15, "type": "corner",   "mesh": "SM_Modular_Corner_Merged",         "rel": [-1500, 0, 0],   "yaw": 180,  "label": "SW corner"},
+
+    {"index": 16, "type": "ceiling",  "mesh": "SM_Modular_Ceiling_Window2_Merged", "rel": [-500, 500, 0], "yaw": 180,  "label": "East skylight"},
+    {"index": 17, "type": "ceiling",  "mesh": "SM_Modular_Ceiling_Window2_Merged", "rel": [-500, 0, 0],   "yaw": 0,    "label": "Mid skylight"},
+    {"index": 18, "type": "ceiling",  "mesh": "SM_Modular_RoofModule_Merged",     "rel": [-1000, 0, 0],  "yaw": 0,    "label": "West roof (solid)"}
+  ],
+  "mesh_paths": {
+    "SM_Modular_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_Floor/SM_Modular_Merged",
+    "SM_Modular_Wall_1_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_Wall_1/SM_Modular_Wall_1_Merged",
+    "SM_WallWindow_1_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_WallWindow_1/SM_WallWindow_1_Merged",
+    "SM_Modular_WallWindow_3_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_WallWindow_3/SM_Modular_WallWindow_3_Merged",
+    "SM_Modular_DoorModule_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_Door_Var1/SM_Modular_DoorModule_Merged",
+    "SM_Modular_Corner_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_Corner/SM_Modular_Corner_Merged",
+    "SM_Modular_Ceiling_Window2_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_Ceiling_Window2/SM_Modular_Ceiling_Window2_Merged",
+    "SM_Modular_RoofModule_Merged": "/Game/ModularSciFi/StaticMeshes/HardSurfaceEnvironment/Modular_Ceiling/SM_Modular_RoofModule_Merged"
+  },
+  "notes": [
+    "All positions are in LOCAL space relative to the hab origin (east cell floor pivot).",
+    "3 cells in a row along -X: east [0,0], mid [-1,0], west [-2,0].",
+    "Door on west short end for corridor/axial entry.",
+    "North wall uses alternating window variants (WallWindow_3, WallWindow_1, WallWindow_3) for visual variety.",
+    "East+Mid cells have Ceiling_Window2 skylights using proven 2x1 paired placement.",
+    "West cell (door end) has solid roof for enclosed entry feel.",
+    "South and east walls are fully solid."
+  ]
+}

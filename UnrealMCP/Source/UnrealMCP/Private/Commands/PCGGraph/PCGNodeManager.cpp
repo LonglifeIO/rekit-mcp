@@ -176,7 +176,7 @@ UPCGNode* FPCGNodeManager::FindNodeByName(UPCGGraph* Graph, const FString& NodeN
     // Check regular nodes
     for (UPCGNode* Node : Graph->GetNodes())
     {
-        if (Node && Node->GetFName().ToString() == NodeName)
+        if (Node && Node->GetFName().ToString().Equals(NodeName, ESearchCase::IgnoreCase))
         {
             return Node;
         }
@@ -184,13 +184,13 @@ UPCGNode* FPCGNodeManager::FindNodeByName(UPCGGraph* Graph, const FString& NodeN
 
     // Check input/output nodes
     UPCGNode* InputNode = Graph->GetInputNode();
-    if (InputNode && InputNode->GetFName().ToString() == NodeName)
+    if (InputNode && InputNode->GetFName().ToString().Equals(NodeName, ESearchCase::IgnoreCase))
     {
         return InputNode;
     }
 
     UPCGNode* OutputNode = Graph->GetOutputNode();
-    if (OutputNode && OutputNode->GetFName().ToString() == NodeName)
+    if (OutputNode && OutputNode->GetFName().ToString().Equals(NodeName, ESearchCase::IgnoreCase))
     {
         return OutputNode;
     }
@@ -264,7 +264,7 @@ TSharedPtr<FJsonObject> FPCGNodeManager::AddNode(const TSharedPtr<FJsonObject>& 
     NewNode->SetNodePosition(PosX, PosY);
 
     // Notify the graph editor
-    Graph->NotifyGraphChanged(EPCGChangeType::Structural);
+    Graph->ForceNotificationForEditor(EPCGChangeType::Structural);
     Graph->GetPackage()->MarkPackageDirty();
 
     // Build response
@@ -335,7 +335,7 @@ TSharedPtr<FJsonObject> FPCGNodeManager::DeleteNode(const TSharedPtr<FJsonObject
     }
 
     Graph->RemoveNode(Node);
-    Graph->NotifyGraphChanged(EPCGChangeType::Structural);
+    Graph->ForceNotificationForEditor(EPCGChangeType::Structural);
     Graph->GetPackage()->MarkPackageDirty();
 
     TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);

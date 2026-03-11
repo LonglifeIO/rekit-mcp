@@ -56,6 +56,14 @@ TSharedPtr<FJsonObject> FEpicUnrealMCPPCGGraphCommands::HandleCommand(const FStr
     {
         return HandleSetPCGSpawnerEntries(Params);
     }
+    else if (CommandType == TEXT("generate_pcg"))
+    {
+        return HandleGeneratePCG(Params);
+    }
+    else if (CommandType == TEXT("get_pcg_node_property"))
+    {
+        return HandleGetPCGNodeProperty(Params);
+    }
 
     return FEpicUnrealMCPCommonUtils::CreateErrorResponse(FString::Printf(TEXT("Unknown PCG graph command: %s"), *CommandType));
 }
@@ -254,4 +262,43 @@ TSharedPtr<FJsonObject> FEpicUnrealMCPPCGGraphCommands::HandleSetPCGSpawnerEntri
         *NodeId, *GraphPath);
 
     return FPCGNodePropertyManager::SetSpawnerEntries(Params);
+}
+
+TSharedPtr<FJsonObject> FEpicUnrealMCPPCGGraphCommands::HandleGeneratePCG(const TSharedPtr<FJsonObject>& Params)
+{
+    FString ActorName;
+    if (!Params->TryGetStringField(TEXT("actor_name"), ActorName))
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'actor_name' parameter"));
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("FEpicUnrealMCPPCGGraphCommands::HandleGeneratePCG: Generating PCG on actor '%s'"), *ActorName);
+
+    return FPCGParameterManager::GeneratePCG(Params);
+}
+
+TSharedPtr<FJsonObject> FEpicUnrealMCPPCGGraphCommands::HandleGetPCGNodeProperty(const TSharedPtr<FJsonObject>& Params)
+{
+    FString GraphPath;
+    if (!Params->TryGetStringField(TEXT("graph_path"), GraphPath))
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'graph_path' parameter"));
+    }
+
+    FString NodeId;
+    if (!Params->TryGetStringField(TEXT("node_id"), NodeId))
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'node_id' parameter"));
+    }
+
+    FString PropertyName;
+    if (!Params->TryGetStringField(TEXT("property_name"), PropertyName))
+    {
+        return FEpicUnrealMCPCommonUtils::CreateErrorResponse(TEXT("Missing 'property_name' parameter"));
+    }
+
+    UE_LOG(LogTemp, Display, TEXT("FEpicUnrealMCPPCGGraphCommands::HandleGetPCGNodeProperty: Getting '%s' from node '%s' in PCG graph '%s'"),
+        *PropertyName, *NodeId, *GraphPath);
+
+    return FPCGNodePropertyManager::GetNodeProperty(Params);
 }

@@ -138,7 +138,7 @@ TSharedPtr<FJsonObject> FPCGNodeConnector::ConnectNodes(const TSharedPtr<FJsonOb
                 *FromNodeId, *FromPin, *ToNodeId, *ToPin));
     }
 
-    Graph->NotifyGraphChanged(EPCGChangeType::Structural);
+    Graph->ForceNotificationForEditor(EPCGChangeType::Structural);
     Graph->GetPackage()->MarkPackageDirty();
 
     TSharedPtr<FJsonObject> Result = MakeShareable(new FJsonObject);

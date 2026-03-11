@@ -1,0 +1,410 @@
+{
+  "version": "1.0",
+  "source": "scene_scanner.extract_archetypes",
+  "grid_size_cm": 500,
+  "archetype_count": 2,
+  "archetypes": [
+    {
+      "id": "archetype_0",
+      "classification": "l_shape",
+      "piece_count": 42,
+      "grid_bounds": [
+        4,
+        4
+      ],
+      "floor_count": 9,
+      "wall_count": 9,
+      "door_count": 4,
+      "window_count": 3,
+      "opening_count": 7,
+      "aspect_ratio": 1.0,
+      "pieces_relative": [
+        {
+          "mesh_name": "SM_Modular_Merged",
+          "piece_type": "floor",
+          "rel_grid_x": 1,
+          "rel_grid_y": 1,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Merged",
+          "piece_type": "floor",
+          "rel_grid_x": 2,
+          "rel_grid_y": 1,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Merged",
+          "piece_type": "floor",
+          "rel_grid_x": 1,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Merged",
+          "piece_type": "floor",
+          "rel_grid_x": 2,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Merged",
+          "piece_type": "floor",
+          "rel_grid_x": -1,
+          "rel_grid_y": 1,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Merged",
+          "piece_type": "floor",
+          "rel_grid_x": 0,
+          "rel_grid_y": 1,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Merged",
+          "piece_type": "floor",
+          "rel_grid_x": -1,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Merged",
+          "piece_type": "floor",
+          "rel_grid_x": 0,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_WallWindow_1_Merged",
+          "piece_type": "window",
+          "rel_grid_x": -1,
+          "rel_grid_y": 2,
+          "rel_grid_z": 0,
+          "rotation_deg": 90.0
+        },
+        {
+          "mesh_name": "SM_Modular_WallWindow_2_Merged",
+          "piece_type": "window",
+          "rel_grid_x": 0,
+          "rel_grid_y": 2,
+          "rel_grid_z": 0,
+          "rotation_deg": 90.0
+        },
+        {
+          "mesh_name": "SM_Modular_DoorModule_Merged",
+          "piece_type": "door",
+          "rel_grid_x": -2,
+          "rel_grid_y": 2,
+          "rel_grid_z": 0,
+          "rotation_deg": 90.0
+        },
+        {
+          "mesh_name": "SM_Modular_WallWindow_3_Merged",
+          "piece_type": "window",
+          "rel_grid_x": 1,
+          "rel_grid_y": 2,
+          "rel_grid_z": 0,
+          "rotation_deg": 90.0
+        },
+        {
+          "mesh_name": "SM_Modular_DoorModule_Merged",
+          "piece_type": "door",
+          "rel_grid_x": 2,
+          "rel_grid_y": 2,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Wall_1_Merged",
+          "piece_type": "wall",
+          "rel_grid_x": 2,
+          "rel_grid_y": 1,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_DoorModule_Merged",
+          "piece_type": "door",
+          "rel_grid_x": 2,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": -90.0
+        },
+        {
+          "mesh_name": "SM_Modular_Wall_1_Merged",
+          "piece_type": "wall",
+          "rel_grid_x": 1,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": -90.0
+        },
+        {
+          "mesh_name": "SM_Modular_Wall_1_Merged",
+          "piece_type": "wall",
+          "rel_grid_x": 0,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": -90.0
+        },
+        {
+          "mesh_name": "SM_Modular_Wall_1_Merged",
+          "piece_type": "wall",
+          "rel_grid_x": -1,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": -90.0
+        },
+        {
+          "mesh_name": "SM_Modular_Wall_1_Merged",
+          "piece_type": "wall",
+          "rel_grid_x": -2,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": 180.0
+        },
+        {
+          "mesh_name": "SM_Modular_Wall_1_Merged",
+          "piece_type": "wall",
+          "rel_grid_x": -2,
+          "rel_grid_y": 1,
+          "rel_grid_z": 0,
+          "rotation_deg": 180.0
+        },
+        {
+          "mesh_name": "SM_Modular_Corner_Merged",
+          "piece_type": "corner",
+          "rel_grid_x": -2,
+          "rel_grid_y": 2,
+          "rel_grid_z": 0,
+          "rotation_deg": 90.0
+        },
+        {
+          "mesh_name": "SM_Modular_Corner_Merged",
+          "piece_type": "corner",
+          "rel_grid_x": -2,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": 180.0
+        },
+        {
+          "mesh_name": "SM_Modular_Corner_Merged",
+          "piece_type": "corner",
+          "rel_grid_x": 2,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": -90.0
+        },
+        {
+          "mesh_name": "SM_Modular_Corner_Merged",
+          "piece_type": "corner",
+          "rel_grid_x": 2,
+          "rel_grid_y": 2,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_RoofModule_Merged",
+          "piece_type": "roof",
+          "rel_grid_x": 2,
+          "rel_grid_y": 1,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_RoofModule_Merged",
+          "piece_type": "roof",
+          "rel_grid_x": 2,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_RoofModule_Merged",
+          "piece_type": "roof",
+          "rel_grid_x": -1,
+          "rel_grid_y": 1,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_RoofModule_Merged",
+          "piece_type": "roof",
+          "rel_grid_x": -1,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_RoofModule_Merged",
+          "piece_type": "roof",
+          "rel_grid_x": 0,
+          "rel_grid_y": 1,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Ceiling_Window1_Merged",
+          "piece_type": "skylight",
+          "rel_grid_x": 0,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_RoofModule_Merged",
+          "piece_type": "roof",
+          "rel_grid_x": 1,
+          "rel_grid_y": 1,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_RoofModule_Merged",
+          "piece_type": "roof",
+          "rel_grid_x": 1,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Merged",
+          "piece_type": "floor",
+          "rel_grid_x": 0,
+          "rel_grid_y": -2,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Wall_1_Merged",
+          "piece_type": "wall",
+          "rel_grid_x": 0,
+          "rel_grid_y": -2,
+          "rel_grid_z": 0,
+          "rotation_deg": -90.0
+        },
+        {
+          "mesh_name": "SM_Modular_Wall_1_Merged",
+          "piece_type": "wall",
+          "rel_grid_x": -1,
+          "rel_grid_y": -2,
+          "rel_grid_z": 0,
+          "rotation_deg": 180.0
+        },
+        {
+          "mesh_name": "SM_Modular_Wall_1_Merged",
+          "piece_type": "wall",
+          "rel_grid_x": -1,
+          "rel_grid_y": -1,
+          "rel_grid_z": 0,
+          "rotation_deg": 90.0
+        },
+        {
+          "mesh_name": "SM_Modular_DoorModule_Merged",
+          "piece_type": "door",
+          "rel_grid_x": 0,
+          "rel_grid_y": -1,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Corner_Merged",
+          "piece_type": "corner",
+          "rel_grid_x": 0,
+          "rel_grid_y": -2,
+          "rel_grid_z": 0,
+          "rotation_deg": -90.0
+        },
+        {
+          "mesh_name": "SM_Modular_Corner_Merged",
+          "piece_type": "corner",
+          "rel_grid_x": 0,
+          "rel_grid_y": -1,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Corner_Merged",
+          "piece_type": "corner",
+          "rel_grid_x": -1,
+          "rel_grid_y": -1,
+          "rel_grid_z": 0,
+          "rotation_deg": 90.0
+        },
+        {
+          "mesh_name": "SM_Modular_Corner_Merged",
+          "piece_type": "corner",
+          "rel_grid_x": -1,
+          "rel_grid_y": -2,
+          "rel_grid_z": 0,
+          "rotation_deg": 180.0
+        },
+        {
+          "mesh_name": "SM_Modular_Ceiling_Window1_Merged",
+          "piece_type": "skylight",
+          "rel_grid_x": 0,
+          "rel_grid_y": -2,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        }
+      ]
+    },
+    {
+      "id": "archetype_1",
+      "classification": "room_2x2",
+      "piece_count": 4,
+      "grid_bounds": [
+        2,
+        2
+      ],
+      "floor_count": 4,
+      "wall_count": 0,
+      "door_count": 0,
+      "window_count": 0,
+      "opening_count": 0,
+      "aspect_ratio": 1.0,
+      "pieces_relative": [
+        {
+          "mesh_name": "SM_Modular_Merged",
+          "piece_type": "floor",
+          "rel_grid_x": 1,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Merged",
+          "piece_type": "floor",
+          "rel_grid_x": 0,
+          "rel_grid_y": 0,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Merged",
+          "piece_type": "floor",
+          "rel_grid_x": 1,
+          "rel_grid_y": 1,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        },
+        {
+          "mesh_name": "SM_Modular_Merged",
+          "piece_type": "floor",
+          "rel_grid_x": 0,
+          "rel_grid_y": 1,
+          "rel_grid_z": 0,
+          "rotation_deg": 0.0
+        }
+      ]
+    }
+  ]
+}

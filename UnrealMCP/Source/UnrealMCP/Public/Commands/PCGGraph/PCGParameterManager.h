@@ -40,6 +40,14 @@ public:
      */
     static TSharedPtr<FJsonObject> AssignPCGGraph(const TSharedPtr<FJsonObject>& Params);
 
+    /**
+     * Force-generate a PCG graph on an actor's PCGComponent
+     * @param Params JSON parameters:
+     *   - actor_name (string): Name of actor in the level with a PCGComponent
+     * @return JSON with success, actor_name
+     */
+    static TSharedPtr<FJsonObject> GeneratePCG(const TSharedPtr<FJsonObject>& Params);
+
 private:
     /**
      * Convert a param_type string to EPropertyBagPropertyType

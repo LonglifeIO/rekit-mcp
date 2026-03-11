@@ -183,6 +183,9 @@ def build_catalog():
                 ]
                 has_pair = len(indoor_candidates) > 0
 
+            # v2 schema: spatial, sockets, semantics, adjacency_stats sub-objects
+            is_grid_piece = category == "modular_building"
+
             mesh_entry = {
                 "name": name,
                 "path": full_path,
@@ -198,9 +201,28 @@ def build_catalog():
             if has_pair:
                 mesh_entry["has_indoor_pair"] = True
 
-            # Bounds placeholder — to be filled by measure_bounds.py
+            # v1 compat: flat bounds fields (filled by enrich_catalog_bounds tool)
             mesh_entry["bounds_extent"] = None
             mesh_entry["size_cm"] = None
+
+            # v2: spatial sub-object
+            mesh_entry["spatial"] = {
+                "bounds_extent": None,
+                "size_cm": None,
+                "pivot_offset_cm": None,
+                "grid_footprint_cells": [1, 1, 1] if is_grid_piece else None,
+                "cell_size_cm": 500 if is_grid_piece else None,
+                "rotations_deg": [0, 90, 180, 270] if is_grid_piece else None,
+            }
+
+            # v2: sockets (filled by Phase B scene scanner)
+            mesh_entry["sockets"] = []
+
+            # v2: semantics (filled by add_catalog_semantics tool)
+            mesh_entry["semantics"] = {}
+
+            # v2: adjacency stats (filled by Phase B scene scanner)
+            mesh_entry["adjacency_stats"] = {}
 
             meshes.append(mesh_entry)
 
@@ -211,11 +233,13 @@ def build_catalog():
     cats = Counter(m["category"] for m in meshes)
 
     catalog = {
-        "version": "1.0",
+        "schema_version": "2.0",
+        "version": "2.0",
         "asset_pack": "ModularSciFi",
         "description": "Complete mesh catalog for the ModularSciFi asset pack. "
+                       "v2 schema with spatial, sockets, semantics, and adjacency_stats. "
                        "Paths are ready for spawn_static_mesh_actor. "
-                       "Bounds are null until measured via measure_bounds.py.",
+                       "Bounds filled by enrich_catalog_bounds tool.",
         "base_path": GAME_ROOT,
         "total_meshes": len(meshes),
         "category_counts": dict(cats.most_common()),

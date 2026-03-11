@@ -1,0 +1,1490 @@
+{
+  "version": "1.0",
+  "source": "scene_scanner.extract_sockets",
+  "socket_types": [
+    "corner_corner_adjacent",
+    "corner_door_adjacent",
+    "corner_door_same_cell",
+    "corner_floor_adjacent",
+    "corner_roof_adjacent",
+    "corner_roof_same_cell",
+    "corner_skylight_adjacent",
+    "corner_skylight_same_cell",
+    "corner_wall_adjacent",
+    "corner_window_adjacent",
+    "door_floor_adjacent",
+    "door_roof_adjacent",
+    "door_roof_same_cell",
+    "door_skylight_adjacent",
+    "door_wall_adjacent",
+    "door_window_adjacent",
+    "floor_continuation",
+    "floor_corner_base",
+    "floor_door_base",
+    "floor_roof_adjacent",
+    "floor_roof_stack",
+    "floor_skylight_adjacent",
+    "floor_skylight_stack",
+    "floor_wall_base",
+    "floor_wall_edge",
+    "floor_window_edge",
+    "roof_continuation",
+    "roof_skylight_adjacent",
+    "roof_wall_adjacent",
+    "roof_wall_same_cell",
+    "roof_window_adjacent",
+    "skylight_wall_adjacent",
+    "skylight_wall_same_cell",
+    "wall_continuation",
+    "wall_corner_endpoint",
+    "wall_window_adjacent",
+    "window_window_adjacent"
+  ],
+  "mesh_count": 9,
+  "per_mesh": [
+    {
+      "mesh_name": "SM_Modular_Ceiling_Window1_Merged",
+      "socket_count": 24,
+      "sockets": [
+        {
+          "direction": "+x",
+          "socket_type": "floor_skylight_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "roof_skylight_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "skylight_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "floor_skylight_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "roof_skylight_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "corner_skylight_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "door_skylight_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "floor_skylight_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "roof_skylight_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "corner_skylight_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "floor_skylight_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "roof_skylight_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "skylight_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "corner_skylight_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "floor_skylight_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "roof_skylight_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "skylight_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "corner_skylight_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "skylight_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "corner_skylight_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "door_skylight_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "corner_skylight_same_cell",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "floor_skylight_stack",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "skylight_wall_same_cell",
+          "connects_to": "wall"
+        }
+      ]
+    },
+    {
+      "mesh_name": "SM_Modular_Corner_Merged",
+      "socket_count": 47,
+      "sockets": [
+        {
+          "direction": "+x",
+          "socket_type": "corner_corner_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "corner_door_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "corner_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "corner_window_adjacent",
+          "connects_to": "window"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "corner_corner_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "corner_door_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "corner_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "corner_corner_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "corner_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "corner_corner_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "corner_door_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "corner_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "corner_corner_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "corner_window_adjacent",
+          "connects_to": "window"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "corner_corner_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "corner_corner_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "corner_corner_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "corner_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "corner_door_same_cell",
+          "connects_to": "door"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "floor_corner_base",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "corner_roof_same_cell",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "corner_skylight_same_cell",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "wall_corner_endpoint",
+          "connects_to": "wall"
+        }
+      ]
+    },
+    {
+      "mesh_name": "SM_Modular_DoorModule_Merged",
+      "socket_count": 30,
+      "sockets": [
+        {
+          "direction": "+x",
+          "socket_type": "door_window_adjacent",
+          "connects_to": "window"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "door_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "door_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "door_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "door_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "door_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "door_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "door_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "door_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "door_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "corner_door_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "door_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "door_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "door_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "door_window_adjacent",
+          "connects_to": "window"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "door_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "door_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "door_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "corner_door_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "door_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "door_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "door_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "corner_door_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "door_floor_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "door_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "door_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "door_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "corner_door_same_cell",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "floor_door_base",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "door_roof_same_cell",
+          "connects_to": "roof"
+        }
+      ]
+    },
+    {
+      "mesh_name": "SM_Modular_Merged",
+      "socket_count": 52,
+      "sockets": [
+        {
+          "direction": "+x",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "door_floor_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "floor_continuation",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "floor_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "door_floor_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "floor_continuation",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "floor_window_edge",
+          "connects_to": "window"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "door_floor_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "floor_continuation",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "floor_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "door_floor_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "floor_continuation",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "floor_window_edge",
+          "connects_to": "window"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "floor_continuation",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "floor_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "door_floor_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "floor_continuation",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "floor_window_edge",
+          "connects_to": "window"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "door_floor_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "floor_continuation",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "floor_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "corner_floor_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "door_floor_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "floor_continuation",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "floor_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "floor_corner_base",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "floor_door_base",
+          "connects_to": "door"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "floor_roof_stack",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "floor_skylight_stack",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "floor_wall_base",
+          "connects_to": "wall"
+        }
+      ]
+    },
+    {
+      "mesh_name": "SM_Modular_RoofModule_Merged",
+      "socket_count": 51,
+      "sockets": [
+        {
+          "direction": "+x",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "door_roof_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "roof_continuation",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "roof_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "door_roof_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "roof_continuation",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "roof_window_adjacent",
+          "connects_to": "window"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "door_roof_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "roof_continuation",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "roof_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "door_roof_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "roof_continuation",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "roof_window_adjacent",
+          "connects_to": "window"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "roof_continuation",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "roof_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "door_roof_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "roof_continuation",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "roof_window_adjacent",
+          "connects_to": "window"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "door_roof_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "roof_continuation",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "roof_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "corner_roof_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "door_roof_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "floor_roof_adjacent",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "roof_continuation",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "roof_skylight_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "corner_roof_same_cell",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "door_roof_same_cell",
+          "connects_to": "door"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "floor_roof_stack",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "roof_wall_same_cell",
+          "connects_to": "wall"
+        }
+      ]
+    },
+    {
+      "mesh_name": "SM_Modular_WallWindow_2_Merged",
+      "socket_count": 8,
+      "sockets": [
+        {
+          "direction": "+x",
+          "socket_type": "window_window_adjacent",
+          "connects_to": "window"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "floor_window_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "roof_window_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "window_window_adjacent",
+          "connects_to": "window"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "floor_window_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "roof_window_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "floor_window_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "roof_window_adjacent",
+          "connects_to": "roof"
+        }
+      ]
+    },
+    {
+      "mesh_name": "SM_Modular_WallWindow_3_Merged",
+      "socket_count": 10,
+      "sockets": [
+        {
+          "direction": "+x",
+          "socket_type": "corner_window_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "door_window_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "floor_window_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "roof_window_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "wall_window_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "window_window_adjacent",
+          "connects_to": "window"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "floor_window_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "roof_window_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "floor_window_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "roof_window_adjacent",
+          "connects_to": "roof"
+        }
+      ]
+    },
+    {
+      "mesh_name": "SM_Modular_Wall_1_Merged",
+      "socket_count": 48,
+      "sockets": [
+        {
+          "direction": "+x",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "door_wall_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "skylight_wall_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "+x",
+          "socket_type": "wall_continuation",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "door_wall_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "skylight_wall_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "wall_continuation",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+x_+y",
+          "socket_type": "wall_window_adjacent",
+          "connects_to": "window"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "door_wall_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "skylight_wall_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "wall_continuation",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "door_wall_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "+y",
+          "socket_type": "wall_continuation",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "skylight_wall_adjacent",
+          "connects_to": "skylight"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "wall_continuation",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "wall_continuation",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-x_+y",
+          "socket_type": "wall_window_adjacent",
+          "connects_to": "window"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "door_wall_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "wall_continuation",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "corner_wall_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "door_wall_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "floor_wall_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "roof_wall_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "wall_continuation",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "wall_corner_endpoint",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "floor_wall_base",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "roof_wall_same_cell",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "same_cell",
+          "socket_type": "skylight_wall_same_cell",
+          "connects_to": "skylight"
+        }
+      ]
+    },
+    {
+      "mesh_name": "SM_WallWindow_1_Merged",
+      "socket_count": 8,
+      "sockets": [
+        {
+          "direction": "+x",
+          "socket_type": "window_window_adjacent",
+          "connects_to": "window"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "floor_window_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "+x_-y",
+          "socket_type": "roof_window_adjacent",
+          "connects_to": "roof"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "corner_window_adjacent",
+          "connects_to": "corner"
+        },
+        {
+          "direction": "-x",
+          "socket_type": "door_window_adjacent",
+          "connects_to": "door"
+        },
+        {
+          "direction": "-x_-y",
+          "socket_type": "wall_window_adjacent",
+          "connects_to": "wall"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "floor_window_edge",
+          "connects_to": "floor"
+        },
+        {
+          "direction": "-y",
+          "socket_type": "roof_window_adjacent",
+          "connects_to": "roof"
+        }
+      ]
+    }
+  ]
+}
